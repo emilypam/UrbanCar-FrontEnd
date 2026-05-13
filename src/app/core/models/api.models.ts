@@ -148,6 +148,25 @@ export interface Tarifa {
   precioBase: number;
 }
 
+export interface CreateModeloRequest {
+  marcaId: string;
+  nombre: string;
+}
+
+export interface CreateCategoriaRequest {
+  nombre: string;
+  descripcion?: string;
+}
+
+export interface CreateAgenciaRequest {
+  nombre: string;
+  empresaId: string;
+  ciudadId: string;
+  direccion?: string;
+  telefono?: string;
+  email?: string;
+}
+
 export interface CanalVenta {
   id: string;
   nombre: string;
@@ -226,6 +245,7 @@ export interface CreateVehiculoRequest {
 export type UpdateVehiculoRequest = Partial<CreateVehiculoRequest> & {
   activo?: boolean;
   estadoId?: string;
+  status?: string;
 };
 
 export interface VehiculoSearchQuery {
@@ -291,6 +311,8 @@ export interface Reserva {
   total: number;
   status: ReservaStatus;
   notas?: string;
+  /** ISO datetime string: bloqueo de 15 min expira aquí (null tras pago exitoso). */
+  expiresAt?: string | null;
   createdAt: string;
   vehiculo?: Vehiculo;
   agencia?: Agencia;

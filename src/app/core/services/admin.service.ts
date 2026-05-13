@@ -7,11 +7,16 @@ import type {
   Agencia,
   ApiSuccess,
   AuthUser,
+  Categoria,
+  CreateAgenciaRequest,
+  CreateCategoriaRequest,
+  CreateModeloRequest,
   DashboardStats,
   Empresa,
   Factura,
   HistorialEntry,
   KardexEntry,
+  Modelo,
   OutboxEvent,
   Paginated,
 } from '@core/models/api.models';
@@ -40,6 +45,50 @@ export class AdminService {
         const rows: any[] = Array.isArray(r.data) ? r.data : (r.data as any)?.data ?? [];
         return rows.map((a) => ({ ...a, activa: a.isActive ?? a.activa ?? true }));
       }));
+  }
+
+  crearAgencia(payload: CreateAgenciaRequest): Observable<Agencia> {
+    return this.http
+      .post<ApiSuccess<Agencia>>(`${this.api}/agencias`, payload)
+      .pipe(map((r) => ({ ...r.data, activa: (r.data as any).isActive ?? true })));
+  }
+
+  editarAgencia(id: string, payload: Partial<CreateAgenciaRequest>): Observable<Agencia> {
+    return this.http
+      .patch<ApiSuccess<Agencia>>(`${this.api}/agencias/${id}`, payload)
+      .pipe(map((r) => ({ ...r.data, activa: (r.data as any).isActive ?? true })));
+  }
+
+  eliminarAgencia(id: string): Observable<{ deleted: boolean }> {
+    return this.http
+      .delete<ApiSuccess<{ deleted: boolean }>>(`${this.api}/agencias/${id}`)
+      .pipe(map((r) => r.data));
+  }
+
+  // ── Modelos ────────────────────────────────────────────────
+  crearModelo(payload: CreateModeloRequest): Observable<Modelo> {
+    return this.http
+      .post<ApiSuccess<Modelo>>(`${this.api}/modelos`, payload)
+      .pipe(map((r) => r.data));
+  }
+
+  eliminarModelo(id: string): Observable<{ deleted: boolean }> {
+    return this.http
+      .delete<ApiSuccess<{ deleted: boolean }>>(`${this.api}/modelos/${id}`)
+      .pipe(map((r) => r.data));
+  }
+
+  // ── Categorias ─────────────────────────────────────────────
+  crearCategoria(payload: CreateCategoriaRequest): Observable<Categoria> {
+    return this.http
+      .post<ApiSuccess<Categoria>>(`${this.api}/categorias`, payload)
+      .pipe(map((r) => r.data));
+  }
+
+  eliminarCategoria(id: string): Observable<{ deleted: boolean }> {
+    return this.http
+      .delete<ApiSuccess<{ deleted: boolean }>>(`${this.api}/categorias/${id}`)
+      .pipe(map((r) => r.data));
   }
 
   // ── Empresas ───────────────────────────────────────────────

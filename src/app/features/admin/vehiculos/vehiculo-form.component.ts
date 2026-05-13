@@ -1,16 +1,15 @@
 import {
-  ChangeDetectionStrategy, Component, EventEmitter, inject, Input,
+  ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, inject, Input,
   OnChanges, OnInit, Output, signal, type SimpleChanges,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 
-import { AdminService }      from '@core/services/admin.service';
-import { CatalogosService }  from '@core/services/catalogos.service';
+import { CatalogosService }       from '@core/services/catalogos.service';
+import { CatalogosStoreService }  from '@core/services/catalogos-store.service';
 import { placaValidator, positiveNumberValidator } from '@core/validators/placa.validator';
 import type {
-  Agencia, Categoria, CreateVehiculoRequest, Modelo, TipoCombustible,
-  TipoTransmision, Vehiculo,
+  CreateVehiculoRequest, TipoCombustible, TipoTransmision, Vehiculo,
 } from '@core/models/api.models';
 
 @Component({
@@ -40,7 +39,7 @@ import type {
         <label class="label" for="vf-modelo">Modelo *</label>
         <select id="vf-modelo" formControlName="modeloId" class="input">
           <option [value]="''" disabled>Selecciona un modelo</option>
-          @for (m of modelos; track m.id) {
+          @for (m of modelos(); track m.id) {
             <option [value]="m.id">{{ m.marca?.nombre }} — {{ m.nombre }}</option>
           }
         </select>
@@ -51,7 +50,7 @@ import type {
         <label class="label" for="vf-categoria">Categoría *</label>
         <select id="vf-categoria" formControlName="categoriaId" class="input">
           <option [value]="''" disabled>Selecciona una categoría</option>
-          @for (c of categorias; track c.id) {
+          @for (c of categorias(); track c.id) {
             <option [value]="c.id">{{ c.nombre }}</option>
           }
         </select>
@@ -84,7 +83,7 @@ import type {
         <label class="label" for="vf-agencia">Agencia *</label>
         <select id="vf-agencia" formControlName="agenciaId" class="input">
           <option [value]="''" disabled>Selecciona una agencia</option>
-          @for (a of agencias; track a.id) {
+          @for (a of agencias(); track a.id) {
             <option [value]="a.id">{{ a.nombre }}</option>
           }
         </select>
@@ -161,21 +160,24 @@ export class VehiculoFormComponent implements OnInit, OnChanges {
   @Output() readonly saved      = new EventEmitter<CreateVehiculoRequest>();
   @Output() readonly validityCh = new EventEmitter<boolean>();
 
-  private readonly fb        = inject(FormBuilder);
-  private readonly admin     = inject(AdminService);
+  private readonly fb       = inject(FormBuilder);
   private readonly catalogos = inject(CatalogosService);
+  private readonly store     = inject(CatalogosStoreService);
+  private readonly cd        = inject(ChangeDetectorRef);
 
   protected readonly minYear = 1990;
   protected readonly maxYear = new Date().getFullYear() + 1;
 
   protected readonly errorMsg = signal<string | null>(null);
 
-  // Catálogos cargados (no usamos signals para no añadir overhead extra)
-  protected modelos:       Modelo[]          = [];
-  protected categorias:    Categoria[]       = [];
+  // Señales reactivas — se actualizan automáticamente cuando el admin crea nuevos items
+  protected readonly modelos    = this.store.modelos;
+  protected readonly categorias = this.store.categorias;
+  protected readonly agencias   = this.store.agencias;
+
+  // Estáticos: combustible y transmisión no cambian durante la sesión
   protected combustibles:  TipoCombustible[] = [];
   protected transmisiones: TipoTransmision[] = [];
-  protected agencias:      Agencia[]         = [];
 
   protected readonly form = this.fb.nonNullable.group({
     placa:             ['', [Validators.required, placaValidator]],
@@ -194,20 +196,18 @@ export class VehiculoFormComponent implements OnInit, OnChanges {
   });
 
   ngOnInit(): void {
-    this.catalogos.modelos().subscribe({
-      next: (l) => this.modelos = l, error: () => this.modelos = [],
-    });
-    this.catalogos.categorias().subscribe({
-      next: (l) => this.categorias = l, error: () => this.categorias = [],
-    });
+    // Recarga siempre al abrir el formulario para reflejar items recién creados
+    this.store.refreshModelos();
+    this.store.refreshCategorias();
+    this.store.refreshAgencias();
+
     this.catalogos.tiposCombustible().subscribe({
-      next: (l) => this.combustibles = l, error: () => this.combustibles = [],
+      next: (l) => { this.combustibles  = l; this.cd.markForCheck(); },
+      error: ()  => { this.combustibles  = []; },
     });
     this.catalogos.tiposTransmision().subscribe({
-      next: (l) => this.transmisiones = l, error: () => this.transmisiones = [],
-    });
-    this.admin.agencias().subscribe({
-      next: (l) => this.agencias = l, error: () => this.agencias = [],
+      next: (l) => { this.transmisiones = l; this.cd.markForCheck(); },
+      error: ()  => { this.transmisiones = []; },
     });
 
     this.form.statusChanges.subscribe((s) => this.validityCh.emit(s === 'VALID'));

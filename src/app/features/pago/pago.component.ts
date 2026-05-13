@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, computed, inject, Input, OnInit, signal,
+  ChangeDetectionStrategy, Component, computed, DestroyRef, inject, Input, OnInit, signal,
 } from '@angular/core';
 import { CurrencyPipe, NgClass } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -7,12 +7,13 @@ import { Router, RouterLink } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { ReservasService } from '@core/services/reservas.service';
+import { PagosService } from '@core/services/pagos.service';
 import { ToastService } from '@core/services/toast.service';
 import {
   cvvValidator, expiracionValidator, formatCardNumber, formatExpiry, tarjetaValidator,
 } from '@core/validators/card.validator';
 import type {
-  MetodoPago, Reserva, ReservaStatus,
+  CreatePagoRequest, MetodoPago, Reserva,
 } from '@core/models/api.models';
 import { formatUsd } from '@core/utils/date.utils';
 import { fadeIn, fadeUp, slideStep } from '@core/animations/motion';
@@ -108,9 +109,26 @@ import { fadeIn, fadeUp, slideStep } from '@core/animations/motion';
             </h2>
             <p class="text-sm text-ink-muted mt-1">
               Reserva <span class="font-mono font-semibold">#{{ r.id.slice(0,8).toUpperCase() }}</span>
-              · Total a pagar <strong class="text-primary-700">{{ formatUsd(r.total) }}</strong>
+              · Total a pagar <strong class="text-primary-700">{{ formatUsd(totalConIva()) }}</strong>
             </p>
           </header>
+
+          <!-- Cuenta regresiva -->
+          @if (r.expiresAt) {
+            <div class="rounded-xl border px-4 py-3 text-sm flex items-center gap-3"
+                 [ngClass]="countdownBannerClass()">
+              <lucide-icon name="clock" class="w-4 h-4 shrink-0"></lucide-icon>
+              @if (expirado()) {
+                <span><strong>Tiempo agotado.</strong>
+                  La reserva expiró. Por favor haz una nueva reserva.</span>
+              } @else {
+                <span>
+                  Tienes <strong class="font-mono text-base tabular-nums">{{ tiempoFormateado() }}</strong>
+                  para completar el pago o el vehículo se liberará.
+                </span>
+              }
+            </div>
+          }
 
           <!-- Método de pago -->
           <div>
@@ -226,13 +244,27 @@ import { fadeIn, fadeUp, slideStep } from '@core/animations/motion';
             </div>
           }
 
-          <button type="submit" class="btn-primary w-full" [disabled]="submitting()">
+          <!-- Procesando -->
+          @if (submitting()) {
+            <div class="rounded-xl border border-primary-200 bg-primary-50 text-primary-800
+                        px-4 py-3 text-sm flex items-center gap-3">
+              <lucide-icon name="loader-2" class="w-5 h-5 animate-spin shrink-0"></lucide-icon>
+              <div>
+                <p class="font-semibold">Procesando pago…</p>
+                <p class="text-xs text-primary-700 mt-0.5">
+                  Por favor espera, no cierres ni recargues la página.
+                </p>
+              </div>
+            </div>
+          }
+
+          <button type="submit" class="btn-primary w-full" [disabled]="submitting() || expirado()">
             @if (submitting()) {
               <lucide-icon name="loader-2" class="w-4 h-4 animate-spin"></lucide-icon>
               Procesando pago…
             } @else {
               <lucide-icon name="lock" class="w-4 h-4"></lucide-icon>
-              Pagar {{ formatUsd(r.total) }}
+              Pagar {{ formatUsd(totalConIva()) }}
             }
           </button>
         </form>
@@ -296,8 +328,10 @@ export class PagoComponent implements OnInit {
   // Servicios
   private readonly fb         = inject(FormBuilder);
   private readonly reservas$  = inject(ReservasService);
+  private readonly pagos$     = inject(PagosService);
   private readonly toast      = inject(ToastService);
   private readonly router     = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   // Helpers
   protected readonly formatUsd = formatUsd;
@@ -310,6 +344,19 @@ export class PagoComponent implements OnInit {
   protected readonly reserva      = signal<Reserva | null>(null);
   protected readonly pagoExitoso    = signal(false);
   protected readonly mensajeExito   = signal('Pago realizado con éxito');
+
+  // Cuenta regresiva de 15 minutos
+  protected readonly tiempoRestante  = signal(0);
+  protected readonly expirado        = computed(() => {
+    const r = this.reserva();
+    return !!r?.expiresAt && this.tiempoRestante() <= 0;
+  });
+  protected readonly tiempoFormateado = computed(() => {
+    const s = this.tiempoRestante();
+    const m = Math.floor(s / 60);
+    return `${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  });
+  private countdownHandle: ReturnType<typeof setInterval> | null = null;
 
   // Catálogo de métodos disponibles
   protected readonly metodosPago: ReadonlyArray<{ value: MetodoPago; label: string; icon: string }> = [
@@ -334,8 +381,7 @@ export class PagoComponent implements OnInit {
   });
 
   /** Signal que refleja, en vivo, si el método actual requiere tarjeta. */
-  protected readonly esTarjetaInternal = signal(true);
-  protected readonly esTarjeta = computed(() => this.esTarjetaInternal());
+  protected readonly esTarjeta = signal(true);
 
   // ── Cálculos derivados ────────────────────────────────────
   /** Subtotal sin IVA = vehículo + extras + seguro. */
@@ -420,9 +466,39 @@ export class PagoComponent implements OnInit {
     return '';
   }
 
+  // ── Cuenta regresiva ──────────────────────────────────────
+  protected countdownBannerClass(): string {
+    const t = this.tiempoRestante();
+    if (t <= 0)   return 'border-red-300 bg-red-50 text-red-800';
+    if (t <= 60)  return 'border-red-200 bg-red-50/60 text-red-700';
+    if (t <= 180) return 'border-amber-200 bg-amber-50 text-amber-800';
+    return 'border-primary-200 bg-primary-50 text-primary-800';
+  }
+
+  private iniciarCountdown(expiresAt: string): void {
+    const remaining = Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
+    this.tiempoRestante.set(remaining);
+    if (remaining <= 0) return;
+
+    this.countdownHandle = setInterval(() => {
+      this.tiempoRestante.update((t) => Math.max(0, t - 1));
+    }, 1000);
+
+    this.destroyRef.onDestroy(() => {
+      if (this.countdownHandle !== null) {
+        clearInterval(this.countdownHandle);
+        this.countdownHandle = null;
+      }
+    });
+  }
+
   // ── Submit ────────────────────────────────────────────────
   protected submit(): void {
     this.errorMsg.set(null);
+    if (this.expirado()) {
+      this.errorMsg.set('La reserva ha expirado. Por favor haz una nueva reserva.');
+      return;
+    }
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -430,10 +506,29 @@ export class PagoComponent implements OnInit {
     const r = this.reserva();
     if (!r) return;
 
+    const v = this.form.getRawValue();
+    const payload: CreatePagoRequest = {
+      reservaId:   r.id,
+      monto:       this.totalConIva(),
+      metodoPago:  v.metodoPago,
+      rucCliente:  v.rucCliente  || undefined,
+      razonSocial: v.razonSocial || undefined,
+    };
+
+    if (this.esTarjetaSync(v.metodoPago)) {
+      payload.tarjeta = {
+        numero:  v.tarjeta.numero.replace(/\s/g, ''),
+        expira:  v.tarjeta.expira,
+        cvv:     v.tarjeta.cvv,
+        titular: v.tarjeta.titular,
+      };
+    }
+
     this.submitting.set(true);
-    this.reservas$.updateStatus(r.id, 'CONFIRMADA' as ReservaStatus).subscribe({
-      next: () => {
+    this.pagos$.create(payload).subscribe({
+      next: (res) => {
         this.submitting.set(false);
+        this.mensajeExito.set(res.message ?? 'Pago realizado con éxito. Tu factura ha sido generada.');
         this.pagoExitoso.set(true);
       },
       error: (err: { error?: { error?: { message?: string } } }) => {
@@ -464,8 +559,11 @@ export class PagoComponent implements OnInit {
               `Esta reserva ya no admite pago en línea (estado: ${r.status}).`,
             );
           }
+        } else if (r.expiresAt && new Date(r.expiresAt) < new Date()) {
+          this.errorCarga.set('Tu reserva ha expirado (15 min). Por favor haz una nueva reserva.');
         } else {
           this.reserva.set(r);
+          if (r.expiresAt) this.iniciarCountdown(r.expiresAt);
         }
         this.loading.set(false);
       },
@@ -509,7 +607,7 @@ export class PagoComponent implements OnInit {
     }
     [numero, titular, expira, cvv].forEach((c) => c.updateValueAndValidity({ emitEvent: false }));
 
-    this.esTarjetaInternal.set(requiere);
+    this.esTarjeta.set(requiere);
   }
 
   /** Versión sincrónica para usar dentro de `submit()`. */

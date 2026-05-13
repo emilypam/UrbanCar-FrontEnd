@@ -6,10 +6,9 @@ import { NgClass } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { VehiculosService } from '@core/services/vehiculos.service';
-import { CatalogosService } from '@core/services/catalogos.service';
 import { ToastService }     from '@core/services/toast.service';
 import type {
-  CreateVehiculoRequest, EstadoVehiculo, Vehiculo,
+  CreateVehiculoRequest, Vehiculo,
 } from '@core/models/api.models';
 import { formatUsd } from '@core/utils/date.utils';
 import { fadeIn, fadeUp } from '@core/animations/motion';
@@ -200,7 +199,6 @@ import { VehiculoFormComponent } from './vehiculo-form.component';
 })
 export class AdminVehiculosComponent implements OnInit {
   private readonly vehiculos$ = inject(VehiculosService);
-  private readonly catalogos  = inject(CatalogosService);
   private readonly toast      = inject(ToastService);
 
   protected readonly formatUsd = formatUsd;
@@ -220,7 +218,6 @@ export class AdminVehiculosComponent implements OnInit {
   protected readonly formValid = signal(false);
   protected readonly deleting  = signal<Vehiculo | null>(null);
 
-  private estados: EstadoVehiculo[] = [];
   @ViewChild('form') private form?: VehiculoFormComponent;
 
   /**
@@ -239,9 +236,6 @@ export class AdminVehiculosComponent implements OnInit {
 
   ngOnInit(): void {
     this.fetch();
-    this.catalogos.estadosVehiculo().subscribe({
-      next: (l) => this.estados = l, error: () => this.estados = [],
-    });
   }
 
   // ── Búsqueda y paginación ────────────────────────────────
@@ -318,23 +312,23 @@ export class AdminVehiculosComponent implements OnInit {
   }
 
   // ── Cambio de estado ─────────────────────────────────────
+  /** Solo DISPONIBLE puede ir a mantenimiento. */
   protected canSetMantenimiento(v: Vehiculo): boolean {
-    return !/mantenim/i.test(v.estado?.nombre ?? '');
+    return ((v as any).status as string) === 'DISPONIBLE';
   }
+  /** Solo MANTENIMIENTO puede volver a disponible. */
   protected canSetDisponible(v: Vehiculo): boolean {
-    return /mantenim/i.test(v.estado?.nombre ?? '');
+    return ((v as any).status as string) === 'MANTENIMIENTO';
   }
 
+  private readonly LABEL_TO_STATUS: Record<'Disponible' | 'Mantenimiento', string> = {
+    Disponible:    'DISPONIBLE',
+    Mantenimiento: 'MANTENIMIENTO',
+  };
+
   protected setEstado(v: Vehiculo, label: 'Disponible' | 'Mantenimiento'): void {
-    const target = this.estados.find((e) => e.nombre.toLowerCase() === label.toLowerCase());
-    if (!target) {
-      this.toast.error(
-        'Estados no disponibles',
-        'No se encontró el catálogo de estados de vehículo.',
-      );
-      return;
-    }
-    this.vehiculos$.changeEstado(v.id, target.id).subscribe({
+    const newStatus = this.LABEL_TO_STATUS[label];
+    this.vehiculos$.changeEstado(v.id, newStatus).subscribe({
       next: () => {
         this.toast.success('Estado actualizado', `${v.placa} → ${label}`);
         this.fetch();

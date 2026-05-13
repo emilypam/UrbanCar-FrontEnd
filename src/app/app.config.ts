@@ -20,6 +20,7 @@ import {
   Plus, Minus, Shield, ListChecks, CheckCircle2, Filter, SlidersHorizontal,
   Sparkles, Info, Pencil, Trash2, Save, Power, Wrench, History, Wallet,
   TrendingUp, BarChart3, Activity, Receipt, CalendarX,
+  Globe, Phone, WifiOff,
 } from 'lucide-angular';
 
 import { jwtInterceptor } from '@core/interceptors/jwt.interceptor';
@@ -44,6 +45,7 @@ export const appConfig: ApplicationConfig = {
         Plus, Minus, Shield, ListChecks, CheckCircle2, Filter, SlidersHorizontal,
         Sparkles, Info, Pencil, Trash2, Save, Power, Wrench, History, Wallet,
         TrendingUp, BarChart3, Activity, Receipt, CalendarX,
+        Globe, Phone, WifiOff,
       }),
     ),
   ],

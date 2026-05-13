@@ -111,6 +111,20 @@ export const routes: Routes = [
         title: 'UrbanCar EC — Agencias',
       },
       {
+        path: 'modelos',
+        loadComponent: () =>
+          import('@features/admin/modelos/modelos-admin.component')
+            .then(m => m.AdminModelosComponent),
+        title: 'UrbanCar EC — Modelos',
+      },
+      {
+        path: 'categorias',
+        loadComponent: () =>
+          import('@features/admin/categorias/categorias-admin.component')
+            .then(m => m.AdminCategoriasComponent),
+        title: 'UrbanCar EC — Categorías',
+      },
+      {
         path: 'kardex',
         loadComponent: () =>
           import('@features/admin/kardex/kardex.component')

@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { map, type Observable } from 'rxjs';
+import { catchError, map, tap, throwError, type Observable } from 'rxjs';
 
 import { environment } from '@env/environment';
 import type {
@@ -54,7 +54,14 @@ export class VehiculosService {
       .get<ApiSuccess<Vehiculo[]>>(`${this.api}/vehiculos/marketplace`, {
         params: this.toParams({ ...query }),
       })
-      .pipe(map((r) => r.data ?? []));
+      .pipe(
+        map((r) => r.data ?? []),
+        tap((vehiculos) => console.log('CONEXIÓN EXITOSA', `${vehiculos.length} vehículo(s) recibidos`)),
+        catchError((err) => {
+          console.error('[VehiculosService] marketplace error:', err);
+          return throwError(() => err);
+        }),
+      );
   }
 
   /** Disponibilidad por rango de fechas (excluye solapamientos). */
@@ -103,9 +110,10 @@ export class VehiculosService {
       .pipe(map((r) => r.data));
   }
 
-  /** Cambiar estado del vehículo (Disponible / Mantenimiento / etc.). */
-  changeEstado(id: string, estadoId: string): Observable<Vehiculo> {
-    return this.update(id, { estadoId });
+  /** Cambiar estado del vehículo (Disponible / Mantenimiento / etc.).
+   *  El campo `status` es un enum en el schema de Prisma. */
+  changeEstado(id: string, status: string): Observable<Vehiculo> {
+    return this.update(id, { status });
   }
 
   // ── Helpers ────────────────────────────────────────────────

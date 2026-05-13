@@ -134,6 +134,8 @@ export class AdminComponent {
     { label: 'Clientes',   icon: 'users',            route: ['/admin/clientes']                   },
     { label: 'Facturas',   icon: 'receipt',          route: ['/admin/facturas']                   },
     { label: 'Agencias',   icon: 'building-2',       route: ['/admin/agencias']                   },
+    { label: 'Modelos',    icon: 'car',              route: ['/admin/modelos']                     },
+    { label: 'Categorías', icon: 'tag',              route: ['/admin/categorias']                  },
     { label: 'Kardex',     icon: 'history',          route: ['/admin/kardex']                     },
   ];
 

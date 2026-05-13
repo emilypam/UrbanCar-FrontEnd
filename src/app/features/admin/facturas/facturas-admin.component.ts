@@ -76,10 +76,10 @@ import type { Factura } from '@core/models/api.models';
                 @for (f of facturas(); track f.id) {
                   <tr class="hover:bg-surface-muted/50 transition-colors">
                     <td class="px-5 py-3 font-mono font-semibold text-primary-700">
-                      {{ f.numeroFactura ?? f.numero ?? ('FAC-' + f.id.slice(0,8)) }}
+                      {{ f.numeroFactura }}
                     </td>
                     <td class="px-5 py-3 text-ink-muted">
-                      {{ f.fechaEmision ?? f.createdAt | date:'dd/MM/yyyy' }}
+                      {{ (f.fechaEmision ?? f.createdAt) | date:'dd/MM/yyyy' }}
                     </td>
                     <td class="px-5 py-3">
                       <p class="font-medium text-ink">{{ f.razonSocial ?? '—' }}</p>
