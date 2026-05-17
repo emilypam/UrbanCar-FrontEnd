@@ -42,5 +42,6 @@ jobs:
             --name nginx-frontend \
             --resource-group $RESOURCE_GROUP \
             --image $ACR_SERVER/nginx-frontend:$GITHUB_SHA \
+            --revision-suffix "sha-${GITHUB_SHA:0:7}" \
             --output none
           echo "nginx-frontend desplegado ✓"
