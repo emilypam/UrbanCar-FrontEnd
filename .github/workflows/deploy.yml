@@ -32,13 +32,15 @@ jobs:
         with:
           context: .
           push: true
-          tags: urbancarregistry.azurecr.io/nginx-frontend:latest
+          tags: |
+            urbancarregistry.azurecr.io/nginx-frontend:latest
+            urbancarregistry.azurecr.io/nginx-frontend:${{ github.sha }}
 
       - name: Deploy a Container Apps
         run: |
           az containerapp update \
             --name nginx-frontend \
             --resource-group $RESOURCE_GROUP \
-            --image $ACR_SERVER/nginx-frontend:latest \
+            --image $ACR_SERVER/nginx-frontend:$GITHUB_SHA \
             --output none
           echo "nginx-frontend desplegado ✓"
