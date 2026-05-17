@@ -234,11 +234,9 @@ export class MarketplaceComponent implements OnInit {
     this.loading.set(true);
     this.errorMsg.set(null);
 
-    this.vehiculos$.search({
-      fechaInicio: c.fechaInicio,
-      fechaFin:    c.fechaFin,
-      ciudadId:    c.ciudadId         ?? undefined,
-      categoriaId: c.categoriaId      ?? undefined,
+    this.vehiculos$.marketplace({
+      ciudadId:          c.ciudadId          ?? undefined,
+      categoriaId:       c.categoriaId       ?? undefined,
       tipoCombustibleId: c.tipoCombustibleId ?? undefined,
       tipoTransmisionId: c.tipoTransmisionId ?? undefined,
     }).subscribe({

@@ -51,12 +51,11 @@ export class VehiculosService {
   /** Catálogo público (sin filtro de fechas). */
   marketplace(query: MarketplaceQuery = {}): Observable<Vehiculo[]> {
     return this.http
-      .get<ApiSuccess<Vehiculo[]>>(`${this.api}/vehiculos/marketplace`, {
+      .get<ApiSuccess<unknown>>(`${this.api}/vehiculos/marketplace`, {
         params: this.toParams({ ...query }),
       })
       .pipe(
-        map((r) => r.data ?? []),
-        tap((vehiculos) => console.log('CONEXIÓN EXITOSA', `${vehiculos.length} vehículo(s) recibidos`)),
+        map((r) => this.normalizeVehiculos(r.data)),
         catchError((err) => {
           console.error('[VehiculosService] marketplace error:', err);
           return throwError(() => err);
@@ -67,10 +66,16 @@ export class VehiculosService {
   /** Disponibilidad por rango de fechas (excluye solapamientos). */
   search(query: VehiculoSearchQuery): Observable<Vehiculo[]> {
     return this.http
-      .get<ApiSuccess<Vehiculo[]>>(`${this.api}/vehiculos/search`, {
+      .get<ApiSuccess<unknown>>(`${this.api}/vehiculos/search`, {
         params: this.toParams({ ...query }),
       })
-      .pipe(map((r) => r.data ?? []));
+      .pipe(
+        map((r) => this.normalizeVehiculos(r.data)),
+        catchError((err) => {
+          console.error('[VehiculosService] search error:', err);
+          return throwError(() => err);
+        }),
+      );
   }
 
   /** Listado paginado (para admin). */
@@ -117,6 +122,18 @@ export class VehiculosService {
   }
 
   // ── Helpers ────────────────────────────────────────────────
+  /**
+   * Acepta tanto un array plano `[...]` como el objeto paginado `{ data: [...] }`
+   * que devuelven indistintamente los endpoints de marketplace y search,
+   * y normaliza cada vehículo con mapVehiculoFromApi.
+   */
+  private normalizeVehiculos(raw: unknown): Vehiculo[] {
+    const arr: unknown[] = Array.isArray(raw)
+      ? raw
+      : Array.isArray((raw as any)?.data) ? (raw as any).data : [];
+    return arr.map(mapVehiculoFromApi);
+  }
+
   /** Backend envuelve `{ data: rows[], total, page }` dentro de `response.data`. */
   private normalizePaginated(
     data: Paginated<Vehiculo> | Vehiculo[] | PaginatedNest | null | undefined,
