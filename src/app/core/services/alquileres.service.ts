@@ -18,8 +18,11 @@ export class AlquileresService {
 
   list(): Observable<Alquiler[]> {
     return this.http
-      .get<ApiSuccess<Alquiler[]>>(`${this.api}/alquileres`)
-      .pipe(map((r) => r.data ?? []));
+      .get<ApiSuccess<any>>(`${this.api}/alquileres`)
+      .pipe(map((r) => {
+        const raw = r.data;
+        return Array.isArray(raw) ? raw : raw?.data ?? raw?.items ?? [];
+      }));
   }
 
   create(payload: CreateAlquilerRequest): Observable<Alquiler> {

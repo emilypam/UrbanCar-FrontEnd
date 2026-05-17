@@ -61,8 +61,12 @@ export class ReservasService {
 
   myReservations(): Observable<Reserva[]> {
     return this.http
-      .get<ApiSuccess<Reserva[]>>(`${this.api}/reservas/my`)
-      .pipe(map((r) => (r.data ?? []).map(normalizeReserva)));
+      .get<ApiSuccess<any>>(`${this.api}/reservas/my`)
+      .pipe(map((r) => {
+        const raw = r.data;
+        const items: any[] = Array.isArray(raw) ? raw : raw?.data ?? raw?.items ?? [];
+        return items.map(normalizeReserva);
+      }));
   }
 
   /** Listado global (admin). Solicita un límite alto para poblar la tabla. */
@@ -71,8 +75,12 @@ export class ReservasService {
       .set('page', String(page))
       .set('limit', String(limit));
     return this.http
-      .get<ApiSuccess<Reserva[]>>(`${this.api}/reservas`, { params })
-      .pipe(map((r) => (r.data ?? []).map(normalizeReserva)));
+      .get<ApiSuccess<any>>(`${this.api}/reservas`, { params })
+      .pipe(map((r) => {
+        const raw = r.data;
+        const items: any[] = Array.isArray(raw) ? raw : raw?.data ?? raw?.items ?? [];
+        return items.map(normalizeReserva);
+      }));
   }
 
   getById(id: string): Observable<Reserva> {
