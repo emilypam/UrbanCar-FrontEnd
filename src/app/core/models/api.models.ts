@@ -81,6 +81,7 @@ export interface UpdateProfileRequest {
   nombres?: string;
   apellidos?: string;
   telefono?: string;
+  cedula?: string;
 }
 
 export interface ChangePasswordRequest {
