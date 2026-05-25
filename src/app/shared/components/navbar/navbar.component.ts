@@ -35,6 +35,11 @@ import { AuthService } from '@core/services/auth.service';
               <lucide-icon name="calendar" class="w-4 h-4"></lucide-icon>
               Mis reservas
             </a>
+            <a routerLink="/perfil" routerLinkActive="text-primary-700 bg-primary-50"
+               class="btn-ghost">
+              <lucide-icon name="user-round" class="w-4 h-4"></lucide-icon>
+              Mi perfil
+            </a>
           }
           @if (auth.isAdmin()) {
             <a routerLink="/admin" routerLinkActive="text-primary-700 bg-primary-50"
@@ -88,6 +93,10 @@ import { AuthService } from '@core/services/auth.service';
           @if (auth.isAuthenticated()) {
             <a routerLink="/cliente" (click)="closeMobile()" class="btn-ghost justify-start">
               Mis reservas
+            </a>
+            <a routerLink="/perfil" (click)="closeMobile()" class="btn-ghost justify-start">
+              <lucide-icon name="user-round" class="w-4 h-4"></lucide-icon>
+              Mi perfil
             </a>
           }
           @if (auth.isAdmin()) {

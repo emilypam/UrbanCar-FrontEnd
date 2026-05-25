@@ -77,6 +77,17 @@ export interface AuthResponse {
   token: string;
 }
 
+export interface UpdateProfileRequest {
+  nombres?: string;
+  apellidos?: string;
+  telefono?: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
 // ──────────────────────────────────────────────────────────────
 //  Catálogos
 // ──────────────────────────────────────────────────────────────

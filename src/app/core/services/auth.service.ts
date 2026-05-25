@@ -9,8 +9,10 @@ import type {
   ApiSuccess,
   AuthResponse,
   AuthUser,
+  ChangePasswordRequest,
   LoginRequest,
   RegisterRequest,
+  UpdateProfileRequest,
 } from '@core/models/api.models';
 
 /**
@@ -98,6 +100,18 @@ export class AuthService {
     return this.http
       .get<ApiSuccess<AuthUser>>(`${this.apiUrl}/auth/me`)
       .pipe(tap((res) => this.setUser(res.data)));
+  }
+
+  /** Actualiza nombres, apellidos y teléfono del usuario autenticado. */
+  updateProfile(data: UpdateProfileRequest): Observable<ApiSuccess<AuthUser>> {
+    return this.http
+      .patch<ApiSuccess<AuthUser>>(`${this.apiUrl}/auth/me`, data)
+      .pipe(tap((res) => this.setUser(res.data)));
+  }
+
+  /** Cambia la contraseña verificando la actual primero. */
+  changePassword(data: ChangePasswordRequest): Observable<ApiSuccess<{ message: string }>> {
+    return this.http.patch<ApiSuccess<{ message: string }>>(`${this.apiUrl}/auth/me/password`, data);
   }
 
   /** Cierra sesión y redirige al login. */

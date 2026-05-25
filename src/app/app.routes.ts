@@ -32,6 +32,13 @@ export const routes: Routes = [
 
   // ── Cliente (autenticado) ─────────────────────────────────
   {
+    path: 'perfil',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('@features/perfil/perfil.component').then(m => m.PerfilComponent),
+    title: 'UrbanCar EC — Mi perfil',
+  },
+  {
     path: 'cliente',
     canActivate: [authGuard],
     loadComponent: () =>
