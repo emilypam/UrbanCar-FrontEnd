@@ -165,7 +165,7 @@ import { ToastService } from '@core/services/toast.service';
                        [class.border-danger]="passInvalid('currentPassword')"
                        placeholder="••••••••" autocomplete="current-password" />
                 <button type="button" tabindex="-1"
-                        (click)="showCurrent.update(v => !v)"
+                        (click)="showCurrent.set(!showCurrent())"
                         class="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink transition-colors">
                   <lucide-icon [name]="showCurrent() ? 'eye-off' : 'eye'" class="w-4 h-4"></lucide-icon>
                 </button>
@@ -189,7 +189,7 @@ import { ToastService } from '@core/services/toast.service';
                        [class.border-danger]="passInvalid('newPassword')"
                        placeholder="Mínimo 8 caracteres" autocomplete="new-password" />
                 <button type="button" tabindex="-1"
-                        (click)="showNew.update(v => !v)"
+                        (click)="showNew.set(!showNew())"
                         class="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink transition-colors">
                   <lucide-icon [name]="showNew() ? 'eye-off' : 'eye'" class="w-4 h-4"></lucide-icon>
                 </button>
@@ -213,7 +213,7 @@ import { ToastService } from '@core/services/toast.service';
                        [class.border-danger]="passInvalid('confirmPassword') || passwordMismatch()"
                        placeholder="Repite la contraseña" autocomplete="new-password" />
                 <button type="button" tabindex="-1"
-                        (click)="showConfirm.update(v => !v)"
+                        (click)="showConfirm.set(!showConfirm())"
                         class="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink transition-colors">
                   <lucide-icon [name]="showConfirm() ? 'eye-off' : 'eye'" class="w-4 h-4"></lucide-icon>
                 </button>
