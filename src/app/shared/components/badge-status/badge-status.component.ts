@@ -5,7 +5,6 @@ import type { ReservaStatus } from '@core/models/api.models';
 
 const RESERVA_LABELS: Record<ReservaStatus, string> = {
   PENDIENTE:  'Pendiente',
-  RESERVADO:  'Reservado',
   CONFIRMADA: 'Confirmada',
   ACTIVA:     'Activa',
   COMPLETADA: 'Completada',
@@ -14,7 +13,6 @@ const RESERVA_LABELS: Record<ReservaStatus, string> = {
 
 const RESERVA_CLASSES: Record<ReservaStatus, string> = {
   PENDIENTE:  'bg-amber-50 text-warning border-amber-200',
-  RESERVADO:  'bg-emerald-50 text-emerald-800 border-emerald-200',
   CONFIRMADA: 'bg-primary-50 text-primary-800 border-primary-200',
   ACTIVA:     'bg-primary-700 text-white border-primary-800',
   COMPLETADA: 'bg-slate-100 text-ink border-slate-200',
@@ -43,11 +41,10 @@ export class BadgeStatusComponent {
   protected readonly cls   = computed(() => RESERVA_CLASSES[this._status()]);
   protected readonly dot   = computed(() => {
     const s = this._status();
-    return s === 'ACTIVA'      ? 'bg-white'
-         : s === 'CANCELADA'   ? 'bg-danger'
-         : s === 'COMPLETADA'  ? 'bg-ink-soft'
-         : s === 'RESERVADO'   ? 'bg-emerald-600'
-         : s === 'CONFIRMADA'  ? 'bg-primary-700'
-         :                       'bg-warning';
+    return s === 'ACTIVA'     ? 'bg-white'
+         : s === 'CANCELADA'  ? 'bg-danger'
+         : s === 'COMPLETADA' ? 'bg-ink-soft'
+         : s === 'CONFIRMADA' ? 'bg-primary-700'
+         :                      'bg-warning';
   });
 }

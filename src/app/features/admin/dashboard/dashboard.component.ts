@@ -163,14 +163,15 @@ export class AdminDashboardComponent implements OnInit {
     const reservasHoy = this.reservasHoyCount();
     const enUso       = this._vehiculos().filter((v) => /uso/i.test(v.estado?.nombre ?? '')).length;
     const enMant      = this.enMantenimiento().length;
-    const ingresos    = s?.ingresos.total ?? this.fallbackIngresos();
+    const ingresos    = s?.ingresos.total || this.fallbackIngresos();
 
     return [
       {
         label: 'Autos en uso',
         icon:  'car',
         value: String(enUso || s?.reservas.activas || 0),
-        hint:  s ? `${s.vehiculos.disponibles} disponibles · ${s.vehiculos.total} totales`
+        hint:  this._vehiculos().length
+                 ? `${this._vehiculos().length - enUso - enMant} disponibles · ${this._vehiculos().length} totales`
                  : 'Sincronizando flota…',
         tone:  'bg-primary-50 text-primary-700',
       },
@@ -186,8 +187,9 @@ export class AdminDashboardComponent implements OnInit {
         label: 'Ingresos acumulados',
         icon:  'wallet',
         value: formatUsd(ingresos),
-        hint:  s ? `${s.facturas.total} facturas emitidas`
-                 : 'Total de ingresos por reserva',
+        hint:  s?.facturas.total
+                 ? `${s.facturas.total} facturas emitidas`
+                 : `${this._reservas().filter((r) => r.status !== 'CANCELADA').length} reservas activas/completadas`,
         tone:  'bg-primary-700 text-white',
       },
       {

@@ -25,7 +25,6 @@ interface PaginatedNest {
 
 const STATUS_LABEL: Record<string, string> = {
   DISPONIBLE:    'Disponible',
-  RESERVADO:     'Reservado',
   EN_USO:        'En uso',
   MANTENIMIENTO: 'Mantenimiento',
   INACTIVO:      'Inactivo',

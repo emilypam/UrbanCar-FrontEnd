@@ -218,6 +218,7 @@ export interface Vehiculo {
   imagenUrl?: string;
   descripcion?: string;
   activo: boolean;
+  status?: string;
   modelo?: Modelo;
   categoria?: Categoria;
   tipoCombustible?: TipoCombustible;
@@ -270,7 +271,6 @@ export interface MarketplaceQuery {
 
 export type ReservaStatus =
   | 'PENDIENTE'
-  | 'RESERVADO'
   | 'CONFIRMADA'
   | 'ACTIVA'
   | 'COMPLETADA'

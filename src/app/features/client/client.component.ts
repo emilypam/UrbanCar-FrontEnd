@@ -106,7 +106,7 @@ import type { Reserva } from '@core/models/api.models';
                 </a>
               }
 
-              @if (r.status === 'PENDIENTE' || r.status === 'RESERVADO') {
+              @if (r.status === 'PENDIENTE' || r.status === 'CONFIRMADA') {
                 <button type="button"
                         (click)="cancelar(r)"
                         [disabled]="cancellingId() === r.id"

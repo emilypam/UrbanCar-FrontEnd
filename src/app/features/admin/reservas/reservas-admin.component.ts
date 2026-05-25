@@ -23,8 +23,7 @@ import { PaginatorComponent }   from '@shared/components/paginator/paginator.com
 const STATUSES: { id: ReservaStatus | 'TODAS'; label: string }[] = [
   { id: 'TODAS',      label: 'Todas' },
   { id: 'PENDIENTE',  label: 'Pendientes' },
-  { id: 'RESERVADO',  label: 'Reservado (pagadas)' },
-  { id: 'CONFIRMADA', label: 'Confirmadas' },
+  { id: 'CONFIRMADA', label: 'Confirmadas (pago recibido)' },
   { id: 'ACTIVA',     label: 'Activas' },
   { id: 'COMPLETADA', label: 'Completadas' },
   { id: 'CANCELADA',  label: 'Canceladas' },
@@ -125,6 +124,7 @@ const STATUSES: { id: ReservaStatus | 'TODAS'; label: string }[] = [
                       <div class="flex items-center justify-end gap-1">
                         @if (canIniciarAlquiler(r)) {
                           <button type="button" class="btn-primary !py-1.5 !px-3 text-xs"
+                                  [disabled]="!!processingId()"
                                   (click)="askIniciar(r)">
                             <lucide-icon name="power" class="w-3.5 h-3.5"></lucide-icon>
                             Iniciar alquiler
@@ -132,15 +132,26 @@ const STATUSES: { id: ReservaStatus | 'TODAS'; label: string }[] = [
                         }
                         @if (canConfirmar(r)) {
                           <button type="button" class="btn-outline !py-1.5 !px-3 text-xs"
+                                  [disabled]="processingId() === r.id"
                                   (click)="confirmar(r)">
-                            <lucide-icon name="check-circle-2" class="w-3.5 h-3.5"></lucide-icon>
+                            @if (processingId() === r.id) {
+                              <lucide-icon name="loader-2" class="w-3.5 h-3.5 animate-spin"></lucide-icon>
+                            } @else {
+                              <lucide-icon name="check-circle-2" class="w-3.5 h-3.5"></lucide-icon>
+                            }
                             Confirmar
                           </button>
                         }
                         @if (canCancelar(r)) {
                           <button type="button" class="btn-ghost text-danger hover:bg-red-50"
-                                  title="Cancelar reserva" (click)="cancelar(r)">
-                            <lucide-icon name="x" class="w-4 h-4"></lucide-icon>
+                                  title="Cancelar reserva"
+                                  [disabled]="processingId() === r.id"
+                                  (click)="cancelar(r)">
+                            @if (processingId() === r.id) {
+                              <lucide-icon name="loader-2" class="w-4 h-4 animate-spin"></lucide-icon>
+                            } @else {
+                              <lucide-icon name="x" class="w-4 h-4"></lucide-icon>
+                            }
                           </button>
                         }
                       </div>
@@ -225,6 +236,7 @@ export class AdminReservasComponent implements OnInit {
 
   protected readonly loading      = signal(true);
   protected readonly saving       = signal(false);
+  protected readonly processingId = signal<string | null>(null);
   protected readonly reservas     = signal<Reserva[]>([]);
   protected readonly query        = signal('');
   protected readonly filterStatus = signal<ReservaStatus | 'TODAS'>('TODAS');
@@ -287,29 +299,43 @@ export class AdminReservasComponent implements OnInit {
   }
 
   // ── Acciones ─────────────────────────────────────────────
-  protected canIniciarAlquiler(r: Reserva): boolean {
-    return r.status === 'CONFIRMADA' || r.status === 'RESERVADO';
-  }
+  protected canIniciarAlquiler(r: Reserva): boolean { return r.status === 'CONFIRMADA'; }
   protected canConfirmar(r: Reserva):       boolean { return r.status === 'PENDIENTE'; }
   protected canCancelar(r: Reserva):        boolean {
-    return r.status === 'PENDIENTE' || r.status === 'RESERVADO' || r.status === 'CONFIRMADA';
+    return r.status === 'PENDIENTE' || r.status === 'CONFIRMADA';
   }
 
   protected confirmar(r: Reserva): void {
+    if (this.processingId()) return;
+    this.processingId.set(r.id);
     this.reservas$.updateStatus(r.id, 'CONFIRMADA').subscribe({
-      next: () => { this.toast.success('Reserva confirmada', this.shortId(r.id)); this.fetch(); },
-      error: (err: { error?: { error?: { message?: string } } }) =>
+      next: () => {
+        this.processingId.set(null);
+        this.toast.success('Reserva confirmada', this.shortId(r.id));
+        this.fetch();
+      },
+      error: (err: { error?: { error?: { message?: string } } }) => {
+        this.processingId.set(null);
         this.toast.error('No se pudo confirmar',
-          err?.error?.error?.message ?? 'Intenta nuevamente.'),
+          err?.error?.error?.message ?? 'Intenta nuevamente.');
+      },
     });
   }
 
   protected cancelar(r: Reserva): void {
+    if (this.processingId()) return;
+    this.processingId.set(r.id);
     this.reservas$.cancel(r.id).subscribe({
-      next: () => { this.toast.success('Reserva cancelada', this.shortId(r.id)); this.fetch(); },
-      error: (err: { error?: { error?: { message?: string } } }) =>
+      next: () => {
+        this.processingId.set(null);
+        this.toast.success('Reserva cancelada', this.shortId(r.id));
+        this.fetch();
+      },
+      error: (err: { error?: { error?: { message?: string } } }) => {
+        this.processingId.set(null);
         this.toast.error('No se pudo cancelar',
-          err?.error?.error?.message ?? 'Intenta nuevamente.'),
+          err?.error?.error?.message ?? 'Intenta nuevamente.');
+      },
     });
   }
 

@@ -314,11 +314,10 @@ export class AdminVehiculosComponent implements OnInit {
   // ── Cambio de estado ─────────────────────────────────────
   /** Solo DISPONIBLE puede ir a mantenimiento. */
   protected canSetMantenimiento(v: Vehiculo): boolean {
-    return ((v as any).status as string) === 'DISPONIBLE';
+    return v.status === 'DISPONIBLE';
   }
-  /** Solo MANTENIMIENTO puede volver a disponible. */
   protected canSetDisponible(v: Vehiculo): boolean {
-    return ((v as any).status as string) === 'MANTENIMIENTO';
+    return v.status === 'MANTENIMIENTO';
   }
 
   private readonly LABEL_TO_STATUS: Record<'Disponible' | 'Mantenimiento', string> = {
