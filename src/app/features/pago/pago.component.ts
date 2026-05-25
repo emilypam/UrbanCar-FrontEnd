@@ -288,19 +288,22 @@ import { fadeIn, fadeUp, slideStep } from '@core/animations/motion';
                                text-primary-700 shrink-0 mt-0.5">
                     <lucide-icon name="user-round" class="w-4 h-4"></lucide-icon>
                   </span>
-                  <div class="min-w-0">
-                    <p class="font-medium text-ink truncate">{{ auth.displayName() }}</p>
+                  <div class="min-w-0 space-y-0.5">
+                    @if (auth.displayName()) {
+                      <p class="font-semibold text-ink truncate">{{ auth.displayName() }}</p>
+                    }
+                    <p class="text-xs text-ink-muted truncate">{{ auth.currentUser()?.email }}</p>
                     @if (auth.currentUser()?.cedula) {
                       <p class="text-xs text-ink-muted font-mono">
                         CI: {{ auth.currentUser()?.cedula }}
                       </p>
                     } @else {
-                      <p class="text-xs text-warning flex items-center gap-1 mt-0.5">
+                      <p class="text-xs text-amber-600 flex items-center gap-1 pt-0.5">
                         <lucide-icon name="alert-circle" class="w-3 h-3 shrink-0"></lucide-icon>
-                        Sin cédula en perfil — se recomienda registrarla.
+                        Sin cédula registrada — se recomienda agregarla en tu perfil.
                       </p>
                     }
-                    <p class="text-xs text-ink-soft mt-1">
+                    <p class="text-[11px] text-ink-soft pt-1">
                       La factura electrónica se emitirá con estos datos.
                     </p>
                   </div>
