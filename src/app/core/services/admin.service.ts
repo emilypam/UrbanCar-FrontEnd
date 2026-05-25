@@ -104,7 +104,10 @@ export class AdminService {
   // ── Clientes / Usuarios ────────────────────────────────────
   clientes(page = 1, limit = 500): Observable<AuthUser[]> {
     return this.paginated<AuthUser>('/usuarios', page, limit)
-      .pipe(map((p) => p.items));
+      .pipe(map((p) => p.items.map((u: any) => ({
+        ...u,
+        isActive: u.isActive ?? u.activo ?? true,
+      }))));
   }
 
   // ── Facturas ───────────────────────────────────────────────

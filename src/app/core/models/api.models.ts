@@ -70,6 +70,7 @@ export interface AuthUser {
   telefono?: string | null;
   cedula?: string | null;
   ciudadId?: string | null;
+  isActive?: boolean;
 }
 
 export interface AuthResponse {
