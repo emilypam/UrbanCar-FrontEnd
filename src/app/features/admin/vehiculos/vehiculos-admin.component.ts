@@ -6,9 +6,10 @@ import { NgClass } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { VehiculosService } from '@core/services/vehiculos.service';
+import { AdminService }     from '@core/services/admin.service';
 import { ToastService }     from '@core/services/toast.service';
 import type {
-  CreateVehiculoRequest, Vehiculo,
+  Agencia, CreateVehiculoRequest, Vehiculo,
 } from '@core/models/api.models';
 import { formatUsd } from '@core/utils/date.utils';
 import { fadeIn, fadeUp } from '@core/animations/motion';
@@ -89,7 +90,7 @@ import { VehiculoFormComponent } from './vehiculo-form.component';
                     </td>
                     <td class="px-4 py-3 font-mono text-xs">{{ v.placa }}</td>
                     <td class="px-4 py-3 text-ink-muted">{{ v.categoria?.nombre ?? '—' }}</td>
-                    <td class="px-4 py-3 text-ink-muted">{{ v.agencia?.nombre ?? '—' }}</td>
+                    <td class="px-4 py-3 text-ink-muted">{{ agenciasMap().get(v.agenciaId) ?? '—' }}</td>
                     <td class="px-4 py-3">
                       <span [ngClass]="estadoClass(v)"
                             class="inline-flex items-center gap-1.5 rounded-full border
@@ -199,6 +200,7 @@ import { VehiculoFormComponent } from './vehiculo-form.component';
 })
 export class AdminVehiculosComponent implements OnInit {
   private readonly vehiculos$ = inject(VehiculosService);
+  private readonly admin$     = inject(AdminService);
   private readonly toast      = inject(ToastService);
 
   protected readonly formatUsd = formatUsd;
@@ -206,7 +208,12 @@ export class AdminVehiculosComponent implements OnInit {
   protected readonly loading   = signal(true);
   protected readonly saving    = signal(false);
   protected readonly vehiculos = signal<Vehiculo[]>([]);
+  protected readonly agencias  = signal<Agencia[]>([]);
   protected readonly query     = signal('');
+
+  protected readonly agenciasMap = computed(() =>
+    new Map(this.agencias().map((a) => [a.id, a.nombre])));
+
 
   // ── Paginación (server-side via /vehiculos?page&limit) ──
   protected readonly page  = signal(1);
@@ -236,6 +243,10 @@ export class AdminVehiculosComponent implements OnInit {
 
   ngOnInit(): void {
     this.fetch();
+    this.admin$.agencias().subscribe({
+      next: (list) => this.agencias.set(list),
+      error: () => {},
+    });
   }
 
   // ── Búsqueda y paginación ────────────────────────────────

@@ -75,7 +75,7 @@ import type { Agencia, Ciudad, Empresa } from '@core/models/api.models';
                   </span>
                   <div>
                     <p class="font-semibold text-ink leading-tight">{{ a.nombre }}</p>
-                    <p class="text-xs text-ink-muted">{{ a.empresa?.nombre ?? '—' }}</p>
+                    <p class="text-xs text-ink-muted">{{ a.empresa?.nombre ?? empresasMap().get(a.empresaId) ?? '—' }}</p>
                   </div>
                 </div>
                 <span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5
@@ -260,6 +260,9 @@ export class AdminAgenciasComponent implements OnInit {
   protected readonly deleteError   = signal<string | null>(null);
 
   protected readonly total = computed(() => this.agencias().length);
+
+  protected readonly empresasMap = computed(() =>
+    new Map(this.empresas().map((e) => [e.id, e.nombre])));
 
   protected readonly form = this.fb.nonNullable.group({
     nombre:    ['', [Validators.required, Validators.minLength(3)]],
