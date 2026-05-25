@@ -6,6 +6,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { AlquileresService } from '@core/services/alquileres.service';
+import { AdminService }      from '@core/services/admin.service';
 import { ToastService }      from '@core/services/toast.service';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ModalComponent }      from '@shared/components/modal/modal.component';
@@ -115,7 +116,7 @@ const ESTADOS_VEHICULO = ['BUENO', 'REGULAR', 'MALO'] as const;
                       </span>
                     </td>
                     <td class="px-5 py-3 text-right font-semibold text-primary-700">
-                      {{ formatUsd(a.reserva?.total) }}
+                      {{ formatUsd(reservaTotal(a)) }}
                     </td>
                     <td class="px-5 py-3 text-right">
                       @if (a.status === 'ACTIVO') {
@@ -124,6 +125,18 @@ const ESTADOS_VEHICULO = ['BUENO', 'REGULAR', 'MALO'] as const;
                                 (click)="askDevolucion(a)">
                           <lucide-icon name="arrow-left-right" class="w-3.5 h-3.5"></lucide-icon>
                           Registrar devolución
+                        </button>
+                      } @else if (a.status === 'FINALIZADO') {
+                        <button type="button"
+                                class="btn-outline !py-1.5 !px-3 text-xs"
+                                [disabled]="generandoFacturaId() === a.id"
+                                (click)="generarFactura(a)">
+                          @if (generandoFacturaId() === a.id) {
+                            <lucide-icon name="loader-2" class="w-3.5 h-3.5 animate-spin"></lucide-icon>
+                          } @else {
+                            <lucide-icon name="receipt" class="w-3.5 h-3.5"></lucide-icon>
+                          }
+                          Generar factura
                         </button>
                       }
                     </td>
@@ -209,17 +222,24 @@ const ESTADOS_VEHICULO = ['BUENO', 'REGULAR', 'MALO'] as const;
 })
 export class AdminAlquileresComponent implements OnInit {
   private readonly alquileres$ = inject(AlquileresService);
+  private readonly admin$       = inject(AdminService);
   private readonly toast        = inject(ToastService);
   private readonly fb           = inject(FormBuilder);
 
   protected readonly formatUsd  = formatUsd;
   protected readonly estados    = ESTADOS_VEHICULO;
 
-  protected readonly loading    = signal(true);
-  protected readonly saving     = signal(false);
-  protected readonly alquileres = signal<Alquiler[]>([]);
-  protected readonly total      = computed(() => this.alquileres().length);
-  protected readonly devolviendo = signal<Alquiler | null>(null);
+  protected readonly loading           = signal(true);
+  protected readonly saving            = signal(false);
+  protected readonly generandoFacturaId = signal<string | null>(null);
+  protected readonly alquileres        = signal<Alquiler[]>([]);
+  protected readonly total             = computed(() => this.alquileres().length);
+  protected readonly devolviendo       = signal<Alquiler | null>(null);
+
+  protected reservaTotal(a: Alquiler): number {
+    const r = a.reserva as any;
+    return Number(r?.totalAmount ?? r?.total ?? 0);
+  }
 
   protected readonly devolucionForm = this.fb.nonNullable.group({
     kmEntrada:      [0,  [Validators.required, Validators.min(0)]],
@@ -276,6 +296,37 @@ export class AdminAlquileresComponent implements OnInit {
         this.saving.set(false);
         this.toast.error('No se pudo registrar la devolución',
           err?.error?.error?.message ?? 'Intenta nuevamente.');
+      },
+    });
+  }
+
+  protected generarFactura(a: Alquiler): void {
+    if (!a.reservaId || this.generandoFacturaId()) return;
+    this.generandoFacturaId.set(a.id);
+    const r = a.reserva as any;
+    const detalles: object[] = [];
+    if (Number(r?.precioBase) > 0) {
+      detalles.push({ descripcion: `Renta del vehículo (${r.diasTotal ?? 1} días)`, cantidad: 1, precioUnit: Number(r.precioBase) });
+    }
+    if (Number(r?.precioSeguro) > 0) {
+      detalles.push({ descripcion: 'Seguro', cantidad: 1, precioUnit: Number(r.precioSeguro) });
+    }
+    if (Number(r?.precioExtras) > 0) {
+      detalles.push({ descripcion: 'Extras', cantidad: 1, precioUnit: Number(r.precioExtras) });
+    }
+    if (!detalles.length) {
+      const total = Number(r?.totalAmount ?? r?.total ?? 0);
+      detalles.push({ descripcion: 'Servicio de alquiler', cantidad: 1, precioUnit: total });
+    }
+    this.admin$.generarFactura(a.reservaId, detalles).subscribe({
+      next: (f) => {
+        this.generandoFacturaId.set(null);
+        this.toast.success('Factura generada', `N° ${f.numeroFactura}`);
+      },
+      error: (err: { error?: { error?: { message?: string } } }) => {
+        this.generandoFacturaId.set(null);
+        const msg = err?.error?.error?.message ?? 'No se pudo generar la factura.';
+        this.toast.error('Error', msg);
       },
     });
   }

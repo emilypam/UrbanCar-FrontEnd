@@ -120,6 +120,12 @@ export class AdminService {
       }));
   }
 
+  generarFactura(reservaId: string, detalles: object[]): Observable<Factura> {
+    return this.http
+      .post<ApiSuccess<Factura>>(`${this.api}/facturas`, { reservaId, detalles })
+      .pipe(map((r) => r.data));
+  }
+
   // ── Auditoría ──────────────────────────────────────────────
   historial(page = 1, limit = 50): Observable<Paginated<HistorialEntry>> {
     return this.paginated<HistorialEntry>('/historial', page, limit);
