@@ -7,9 +7,10 @@ import { LucideAngularModule } from 'lucide-angular';
 
 import { ReservasService }    from '@core/services/reservas.service';
 import { AlquileresService }  from '@core/services/alquileres.service';
+import { VehiculosService }   from '@core/services/vehiculos.service';
 import { ToastService }       from '@core/services/toast.service';
 import type {
-  CreateAlquilerRequest, Reserva, ReservaStatus,
+  CreateAlquilerRequest, Reserva, ReservaStatus, Vehiculo,
 } from '@core/models/api.models';
 import { formatLong, formatUsd } from '@core/utils/date.utils';
 import { fadeIn, fadeUp } from '@core/animations/motion';
@@ -102,13 +103,15 @@ const STATUSES: { id: ReservaStatus | 'TODAS'; label: string }[] = [
                       {{ shortId(r.id) }}
                     </td>
                     <td class="px-4 py-3">
-                      <p class="font-medium leading-tight">
-                        {{ r.vehiculo?.modelo?.marca?.nombre }}
-                        <span class="text-ink-muted font-normal">
-                          {{ r.vehiculo?.modelo?.nombre }}
-                        </span>
-                      </p>
-                      <p class="text-xs text-ink-soft">{{ r.vehiculo?.placa }}</p>
+                      @if (r.vehiculo ?? vehiculosMap().get(r.vehiculoId); as v) {
+                        <p class="font-medium leading-tight">
+                          {{ v.modelo?.marca?.nombre }}
+                          <span class="text-ink-muted font-normal">{{ v.modelo?.nombre }}</span>
+                        </p>
+                        <p class="text-xs text-ink-soft">{{ v.placa }}</p>
+                      } @else {
+                        <p class="text-xs text-ink-soft font-mono">{{ r.vehiculoId.slice(0,8) }}</p>
+                      }
                     </td>
                     <td class="px-4 py-3 text-ink-muted">
                       <p>{{ formatLong(r.fechaInicio) }}</p>
@@ -178,10 +181,12 @@ const STATUSES: { id: ReservaStatus | 'TODAS'; label: string }[] = [
       <ng-container body>
         @if (iniciandoReserva(); as r) {
           <div class="rounded-xl border border-surface-border bg-surface-muted p-3 mb-4">
-            <p class="text-sm font-semibold">
-              {{ r.vehiculo?.modelo?.marca?.nombre }} {{ r.vehiculo?.modelo?.nombre }}
-              <span class="text-ink-muted font-normal">· {{ r.vehiculo?.placa }}</span>
-            </p>
+            @if (r.vehiculo ?? vehiculosMap().get(r.vehiculoId); as v) {
+              <p class="text-sm font-semibold">
+                {{ v.modelo?.marca?.nombre }} {{ v.modelo?.nombre }}
+                <span class="text-ink-muted font-normal">· {{ v.placa }}</span>
+              </p>
+            }
             <p class="text-xs text-ink-soft">
               {{ formatLong(r.fechaInicio) }} → {{ formatLong(r.fechaFin) }}
             </p>
@@ -227,6 +232,7 @@ const STATUSES: { id: ReservaStatus | 'TODAS'; label: string }[] = [
 export class AdminReservasComponent implements OnInit {
   private readonly reservas$    = inject(ReservasService);
   private readonly alquileres$  = inject(AlquileresService);
+  private readonly vehiculos$   = inject(VehiculosService);
   private readonly toast        = inject(ToastService);
   private readonly fb           = inject(FormBuilder);
 
@@ -238,6 +244,10 @@ export class AdminReservasComponent implements OnInit {
   protected readonly saving       = signal(false);
   protected readonly processingId = signal<string | null>(null);
   protected readonly reservas     = signal<Reserva[]>([]);
+  protected readonly vehiculos    = signal<Vehiculo[]>([]);
+  protected readonly vehiculosMap = computed(() =>
+    new Map(this.vehiculos().map((v) => [v.id, v])));
+
   protected readonly query        = signal('');
   protected readonly filterStatus = signal<ReservaStatus | 'TODAS'>('TODAS');
 
@@ -273,7 +283,13 @@ export class AdminReservasComponent implements OnInit {
     return this.filtered().slice(start, start + this.limit());
   });
 
-  ngOnInit(): void { this.fetch(); }
+  ngOnInit(): void {
+    this.fetch();
+    this.vehiculos$.list(1, 500).subscribe({
+      next: (p) => this.vehiculos.set(p.items),
+      error: () => {},
+    });
+  }
 
   // ── Filtros y paginación ─────────────────────────────────
   protected setQuery(ev: Event): void {
@@ -341,8 +357,9 @@ export class AdminReservasComponent implements OnInit {
 
   protected askIniciar(r: Reserva): void {
     this.iniciandoReserva.set(r);
+    const v = r.vehiculo ?? this.vehiculosMap().get(r.vehiculoId);
     this.iniciarForm.reset({
-      kmSalida: r.vehiculo?.kilometraje ?? 0,
+      kmSalida: v?.kilometraje ?? 0,
       observaciones: '',
     });
   }
