@@ -8,10 +8,11 @@ import { LucideAngularModule } from 'lucide-angular';
 import { AlquileresService } from '@core/services/alquileres.service';
 import { AdminService }      from '@core/services/admin.service';
 import { ToastService }      from '@core/services/toast.service';
+import { VehiculosService }  from '@core/services/vehiculos.service';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ModalComponent }      from '@shared/components/modal/modal.component';
 import { formatUsd } from '@core/utils/date.utils';
-import type { Alquiler, AlquilerStatus } from '@core/models/api.models';
+import type { Alquiler, AlquilerStatus, Vehiculo } from '@core/models/api.models';
 
 const STATUS_CLASSES: Record<AlquilerStatus, string> = {
   ACTIVO:     'bg-primary-700 text-white border-primary-800',
@@ -92,11 +93,15 @@ const ESTADOS_VEHICULO = ['BUENO', 'REGULAR', 'MALO'] as const;
                       {{ a.id.slice(0, 8) }}…
                     </td>
                     <td class="px-5 py-3">
-                      <p class="font-medium text-ink">
-                        {{ a.reserva?.vehiculo?.modelo?.marca?.nombre ?? '—' }}
-                        {{ a.reserva?.vehiculo?.modelo?.nombre ?? '' }}
-                      </p>
-                      <p class="text-xs text-ink-muted">{{ a.reserva?.vehiculo?.placa ?? '' }}</p>
+                      @if (a.reserva?.vehiculo ?? vehiculosMap().get(a.reserva?.vehiculoId ?? ''); as v) {
+                        <p class="font-medium text-ink">
+                          {{ v.modelo?.marca?.nombre }}
+                          <span class="text-ink-muted font-normal">{{ v.modelo?.nombre }}</span>
+                        </p>
+                        <p class="text-xs text-ink-muted">{{ v.placa }}</p>
+                      } @else {
+                        <span class="text-xs text-ink-soft">—</span>
+                      }
                     </td>
                     <td class="px-5 py-3 text-ink-muted">{{ a.kmSalida | number }}</td>
                     <td class="px-5 py-3 text-ink-muted">
@@ -157,11 +162,12 @@ const ESTADOS_VEHICULO = ['BUENO', 'REGULAR', 'MALO'] as const;
       <ng-container body>
         @if (devolviendo(); as a) {
           <div class="rounded-xl border border-surface-border bg-surface-muted p-3 mb-4">
-            <p class="text-sm font-semibold">
-              {{ a.reserva?.vehiculo?.modelo?.marca?.nombre }}
-              {{ a.reserva?.vehiculo?.modelo?.nombre }}
-              <span class="text-ink-muted font-normal">· {{ a.reserva?.vehiculo?.placa }}</span>
-            </p>
+            @if (a.reserva?.vehiculo ?? vehiculosMap().get(a.reserva?.vehiculoId ?? ''); as v) {
+              <p class="text-sm font-semibold">
+                {{ v.modelo?.marca?.nombre }} {{ v.modelo?.nombre }}
+                <span class="text-ink-muted font-normal">· {{ v.placa }}</span>
+              </p>
+            }
             <p class="text-xs text-ink-soft">Km salida: {{ a.kmSalida | number }}</p>
           </div>
 
@@ -225,6 +231,7 @@ export class AdminAlquileresComponent implements OnInit {
   private readonly admin$       = inject(AdminService);
   private readonly toast        = inject(ToastService);
   private readonly fb           = inject(FormBuilder);
+  private readonly vehiculos$   = inject(VehiculosService);
 
   protected readonly formatUsd  = formatUsd;
   protected readonly estados    = ESTADOS_VEHICULO;
@@ -233,6 +240,9 @@ export class AdminAlquileresComponent implements OnInit {
   protected readonly saving            = signal(false);
   protected readonly generandoFacturaId = signal<string | null>(null);
   protected readonly alquileres        = signal<Alquiler[]>([]);
+  protected readonly vehiculos         = signal<Vehiculo[]>([]);
+  protected readonly vehiculosMap      = computed(() =>
+    new Map(this.vehiculos().map((v) => [v.id, v])));
   protected readonly total             = computed(() => this.alquileres().length);
   protected readonly devolviendo       = signal<Alquiler | null>(null);
 
@@ -252,7 +262,13 @@ export class AdminAlquileresComponent implements OnInit {
     return STATUS_CLASSES[s] ?? 'bg-slate-100 text-ink';
   }
 
-  ngOnInit(): void { this.fetch(); }
+  ngOnInit(): void {
+    this.fetch();
+    this.vehiculos$.list(1, 500).subscribe({
+      next: (p) => this.vehiculos.set(p.items),
+      error: () => {},
+    });
+  }
 
   protected askDevolucion(a: Alquiler): void {
     this.devolviendo.set(a);

@@ -4,11 +4,12 @@ import {
 import { DatePipe } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 
-import { AdminService } from '@core/services/admin.service';
-import { ToastService } from '@core/services/toast.service';
+import { AdminService }      from '@core/services/admin.service';
+import { ToastService }      from '@core/services/toast.service';
+import { AlquileresService } from '@core/services/alquileres.service';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { formatUsd } from '@core/utils/date.utils';
-import type { Factura } from '@core/models/api.models';
+import type { Alquiler, AuthUser, Factura } from '@core/models/api.models';
 
 @Component({
   selector: 'app-admin-facturas',
@@ -82,8 +83,14 @@ import type { Factura } from '@core/models/api.models';
                       {{ (f.fechaEmision ?? f.createdAt) | date:'dd/MM/yyyy' }}
                     </td>
                     <td class="px-5 py-3">
-                      <p class="font-medium text-ink">{{ f.razonSocial ?? '—' }}</p>
-                      <p class="text-xs text-ink-muted font-mono">{{ f.rucCliente ?? '' }}</p>
+                      @if (clienteNombre(f); as nombre) {
+                        <p class="font-medium text-ink">{{ nombre }}</p>
+                      } @else {
+                        <p class="text-xs text-ink-soft">—</p>
+                      }
+                      @if (clienteCedula(f); as ced) {
+                        <p class="text-xs text-ink-muted font-mono">{{ ced }}</p>
+                      }
                     </td>
                     <td class="px-5 py-3 text-right text-ink-muted">
                       {{ formatUsd(f.subtotal) }}
@@ -113,15 +120,38 @@ import type { Factura } from '@core/models/api.models';
   `,
 })
 export class AdminFacturasComponent implements OnInit {
-  private readonly admin$ = inject(AdminService);
-  private readonly toast    = inject(ToastService);
+  private readonly admin$      = inject(AdminService);
+  private readonly toast       = inject(ToastService);
+  private readonly alquileres$ = inject(AlquileresService);
 
   protected readonly formatUsd    = formatUsd;
   protected readonly loading      = signal(true);
   protected readonly facturas     = signal<Factura[]>([]);
+  protected readonly alquileres   = signal<Alquiler[]>([]);
+  protected readonly clientes     = signal<AuthUser[]>([]);
+
   protected readonly totalEmitido = computed(() =>
     this.facturas().reduce((acc, f) => acc + Number(f.total ?? 0), 0),
   );
+
+  protected readonly reservaUserMap = computed(() =>
+    new Map(this.alquileres().map((a) => [a.reservaId, a.reserva?.usuarioId ?? ''])));
+
+  protected readonly clientesMap = computed(() =>
+    new Map(this.clientes().map((c) => [c.id, c])));
+
+  protected clienteNombre(f: Factura): string {
+    if (f.razonSocial) return f.razonSocial;
+    const uid = this.reservaUserMap().get(f.reservaId) ?? '';
+    const c = this.clientesMap().get(uid);
+    return c ? `${c.nombres} ${c.apellidos}`.trim() : '';
+  }
+
+  protected clienteCedula(f: Factura): string {
+    if (f.rucCliente) return f.rucCliente;
+    const uid = this.reservaUserMap().get(f.reservaId) ?? '';
+    return this.clientesMap().get(uid)?.cedula ?? '';
+  }
 
   ngOnInit(): void {
     this.admin$.facturas().subscribe({
@@ -133,6 +163,14 @@ export class AdminFacturasComponent implements OnInit {
           err?.error?.error?.message ?? '¿Sesión de administrador válida?',
         );
       },
+    });
+    this.alquileres$.list().subscribe({
+      next:  (list) => this.alquileres.set(list),
+      error: () => {},
+    });
+    this.admin$.clientes().subscribe({
+      next:  (list) => this.clientes.set(list),
+      error: () => {},
     });
   }
 }
