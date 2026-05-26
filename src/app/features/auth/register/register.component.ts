@@ -75,15 +75,17 @@ import { ADMIN_CODE, ROLES } from '@core/constants/app.constants';
           </div>
 
           <div>
-            <label class="label" for="cedula">Cédula <span class="text-ink-soft">(opcional)</span></label>
+            <label class="label" for="cedula">Cédula</label>
             <input id="cedula" type="text" formControlName="cedula" class="input"
                    inputmode="numeric" maxlength="13" placeholder="1716534228" />
+            @if (showError('cedula')) { <p class="error">Ingresa tu número de cédula.</p> }
           </div>
 
           <div>
-            <label class="label" for="telefono">Teléfono <span class="text-ink-soft">(opcional)</span></label>
+            <label class="label" for="telefono">Teléfono</label>
             <input id="telefono" type="tel" formControlName="telefono" class="input"
                    autocomplete="tel" placeholder="+593 99 999 9999" />
+            @if (showError('telefono')) { <p class="error">Ingresa tu número de teléfono.</p> }
           </div>
 
           <div>
@@ -181,8 +183,8 @@ export class RegisterComponent {
     apellidos: ['', [Validators.required]],
     email:     ['', [Validators.required, Validators.email]],
     password:  ['', [Validators.required, Validators.minLength(6)]],
-    cedula:    [''],
-    telefono:  [''],
+    cedula:    ['', [Validators.required]],
+    telefono:  ['', [Validators.required]],
     adminCode: [''],
   });
 
@@ -203,7 +205,7 @@ export class RegisterComponent {
   protected togglePwd(): void { this.showPwd.update((v) => !v); }
 
   protected showError(
-    name: 'nombres' | 'apellidos' | 'email' | 'password',
+    name: 'nombres' | 'apellidos' | 'email' | 'password' | 'cedula' | 'telefono',
   ): boolean {
     const c = this.form.controls[name];
     return c.invalid && (c.dirty || c.touched);
