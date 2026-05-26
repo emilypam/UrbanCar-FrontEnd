@@ -383,6 +383,9 @@ export class PerfilComponent implements OnInit {
         telefono:  u.telefono ?? '',
       });
     }
+    // Sincroniza con el servidor para obtener campos como cédula que
+    // pueden no estar en el snapshot de localStorage.
+    this.auth.refreshProfile().subscribe({ error: () => {} });
   }
 
   protected isInvalid(field: string): boolean {
