@@ -4,7 +4,8 @@ import {
 import { NgClass } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 
-import { AdminService } from '@core/services/admin.service';
+import { AdminService }  from '@core/services/admin.service';
+import { ToastService }  from '@core/services/toast.service';
 import type {
   HistorialEntry, KardexEntry, OutboxEvent, Paginated,
 } from '@core/models/api.models';
@@ -175,6 +176,7 @@ interface Tab {
 })
 export class AdminKardexComponent implements OnInit {
   private readonly admin = inject(AdminService);
+  private readonly toast = inject(ToastService);
 
   protected readonly tabs: Tab[] = [
     { id: 'kardex',    label: 'Kardex de vehículos', icon: 'car' },
@@ -252,20 +254,26 @@ export class AdminKardexComponent implements OnInit {
     const page = this.page();
     const lim  = this.limit();
 
+    const reset = (label: string) => {
+      this._page.set({ items: [], total: 0, page, limit: lim });
+      this.loading.set(false);
+      this.toast.error(`No se pudo cargar ${label}`, 'Verifica la conexión con el servidor.');
+    };
+
     if (tab === 'kardex') {
       this.admin.kardex(page, lim).subscribe({
         next: (p) => { this.kardexItems.set(p.items); this._page.set(p); this.loading.set(false); },
-        error: ()  => { this.kardexItems.set([]); this._page.set({ items: [], total: 0, page, limit: lim }); this.loading.set(false); },
+        error: () => { this.kardexItems.set([]); reset('el kardex'); },
       });
     } else if (tab === 'historial') {
       this.admin.historial(page, lim).subscribe({
         next: (p) => { this.historialItems.set(p.items); this._page.set(p); this.loading.set(false); },
-        error: ()  => { this.historialItems.set([]); this._page.set({ items: [], total: 0, page, limit: lim }); this.loading.set(false); },
+        error: () => { this.historialItems.set([]); reset('el historial'); },
       });
     } else {
       this.admin.outboxEvents(page, lim).subscribe({
         next: (p) => { this.outboxItems.set(p.items); this._page.set(p); this.loading.set(false); },
-        error: ()  => { this.outboxItems.set([]); this._page.set({ items: [], total: 0, page, limit: lim }); this.loading.set(false); },
+        error: () => { this.outboxItems.set([]); reset('los eventos outbox'); },
       });
     }
   }
