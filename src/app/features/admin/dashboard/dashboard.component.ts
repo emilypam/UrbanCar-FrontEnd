@@ -1,12 +1,15 @@
 import {
-  ChangeDetectionStrategy, Component, computed, inject, OnInit, signal,
+  ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NgClass } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
+import { catchError, forkJoin, interval, map, of } from 'rxjs';
 
 import { AdminService } from '@core/services/admin.service';
 import { VehiculosService } from '@core/services/vehiculos.service';
 import { ReservasService } from '@core/services/reservas.service';
+import { SocketService } from '@core/services/socket.service';
 import type {
   DashboardStats, Reserva, Vehiculo,
 } from '@core/models/api.models';
@@ -38,7 +41,15 @@ interface Kpi {
           </p>
           <h2 class="text-2xl font-semibold text-ink">Dashboard</h2>
         </div>
-        <p class="text-sm text-ink-muted">{{ today() }}</p>
+        <div class="flex flex-col items-end gap-1">
+          <p class="text-sm text-ink-muted">{{ today() }}</p>
+          @if (lastUpdated()) {
+            <p class="flex items-center gap-1.5 text-xs text-ink-soft">
+              <span class="w-1.5 h-1.5 rounded-full bg-primary-700 animate-pulse"></span>
+              En vivo · {{ lastUpdated() }}
+            </p>
+          }
+        </div>
       </header>
 
       <!-- KPI cards -->
@@ -139,9 +150,12 @@ export class AdminDashboardComponent implements OnInit {
   private readonly admin      = inject(AdminService);
   private readonly vehiculos$ = inject(VehiculosService);
   private readonly reservas$  = inject(ReservasService);
+  private readonly socket$    = inject(SocketService);
+  private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly formatUsd = formatUsd;
-  protected readonly today = signal(formatLong(todayIso()));
+  protected readonly formatUsd   = formatUsd;
+  protected readonly today       = signal(formatLong(todayIso()));
+  protected readonly lastUpdated = signal('');
 
   protected readonly loading = signal(true);
   private readonly _stats     = signal<DashboardStats | null>(null);
@@ -217,12 +231,35 @@ export class AdminDashboardComponent implements OnInit {
       next: (l) => { this._reservas.set(l); this.tryFinishLoading(); },
       error: ()  => { this._reservas.set([]); this.tryFinishLoading(); },
     });
+
+    this.socket$.onAny(
+      'reserva:creada', 'reserva:cancelada', 'reserva:confirmada', 'reserva:completada',
+      'pago:procesado', 'vehiculo:actualizado', 'alquiler:iniciado',
+    ).pipe(takeUntilDestroyed(this.destroyRef))
+     .subscribe(() => this.silentRefresh());
+
+    interval(30_000).pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => this.silentRefresh());
   }
 
   private finished = 0;
   private tryFinishLoading(): void {
     this.finished += 1;
     if (this.finished >= 3) this.loading.set(false);
+  }
+
+  private silentRefresh(): void {
+    forkJoin([
+      this.admin.dashboard().pipe(catchError(() => of(null))),
+      this.vehiculos$.list(1, 200).pipe(map((p) => p.items), catchError(() => of([]))),
+      this.reservas$.listAll().pipe(catchError(() => of([]))),
+    ]).subscribe(([stats, vehiculos, reservas]) => {
+      this._stats.set(stats as DashboardStats | null);
+      this._vehiculos.set(vehiculos as Vehiculo[]);
+      this._reservas.set(reservas as Reserva[]);
+      this.lastUpdated.set(new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }));
+    });
   }
 
   private reservasHoyCount(): number {

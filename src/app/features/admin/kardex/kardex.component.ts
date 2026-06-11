@@ -1,8 +1,10 @@
 import {
-  ChangeDetectionStrategy, Component, computed, inject, OnInit, signal,
+  ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NgClass } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
+import { interval } from 'rxjs';
 
 import { AdminService }  from '@core/services/admin.service';
 import { ToastService }  from '@core/services/toast.service';
@@ -41,6 +43,12 @@ interface Tab {
           Vista de sólo lectura: kardex de vehículos, historial de acciones
           y eventos outbox preparados para el Reto 2.
         </p>
+        @if (lastUpdated()) {
+          <p class="flex items-center gap-1.5 text-xs text-ink-soft mt-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-primary-700 animate-pulse"></span>
+            En vivo · {{ lastUpdated() }}
+          </p>
+        }
       </header>
 
       <!-- Tabs -->
@@ -175,8 +183,9 @@ interface Tab {
   `,
 })
 export class AdminKardexComponent implements OnInit {
-  private readonly admin = inject(AdminService);
-  private readonly toast = inject(ToastService);
+  private readonly admin      = inject(AdminService);
+  private readonly toast      = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly tabs: Tab[] = [
     { id: 'kardex',    label: 'Kardex de vehículos', icon: 'car' },
@@ -184,8 +193,9 @@ export class AdminKardexComponent implements OnInit {
     { id: 'outbox',    label: 'Eventos outbox',  icon: 'sparkles' },
   ];
 
-  protected readonly activeTab = signal<TabId>('kardex');
-  protected readonly loading   = signal(true);
+  protected readonly activeTab   = signal<TabId>('kardex');
+  protected readonly loading     = signal(true);
+  protected readonly lastUpdated = signal('');
 
   protected readonly kardexItems    = signal<KardexEntry[]>([]);
   protected readonly historialItems = signal<HistorialEntry[]>([]);
@@ -216,7 +226,12 @@ export class AdminKardexComponent implements OnInit {
     }
   });
 
-  ngOnInit(): void { this.fetch(); }
+  ngOnInit(): void {
+    this.fetch();
+    interval(30_000).pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => this.silentFetch());
+  }
 
   protected setTab(id: TabId): void {
     if (this.activeTab() === id) return;
@@ -260,20 +275,48 @@ export class AdminKardexComponent implements OnInit {
       this.toast.error(`No se pudo cargar ${label}`, 'Verifica la conexión con el servidor.');
     };
 
+    const markUpdated = () =>
+      this.lastUpdated.set(new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }));
+
     if (tab === 'kardex') {
       this.admin.kardex(page, lim).subscribe({
-        next: (p) => { this.kardexItems.set(p.items); this._page.set(p); this.loading.set(false); },
+        next: (p) => { this.kardexItems.set(p.items); this._page.set(p); this.loading.set(false); markUpdated(); },
         error: () => { this.kardexItems.set([]); reset('el kardex'); },
       });
     } else if (tab === 'historial') {
       this.admin.historial(page, lim).subscribe({
-        next: (p) => { this.historialItems.set(p.items); this._page.set(p); this.loading.set(false); },
+        next: (p) => { this.historialItems.set(p.items); this._page.set(p); this.loading.set(false); markUpdated(); },
         error: () => { this.historialItems.set([]); reset('el historial'); },
       });
     } else {
       this.admin.outboxEvents(page, lim).subscribe({
-        next: (p) => { this.outboxItems.set(p.items); this._page.set(p); this.loading.set(false); },
+        next: (p) => { this.outboxItems.set(p.items); this._page.set(p); this.loading.set(false); markUpdated(); },
         error: () => { this.outboxItems.set([]); reset('los eventos outbox'); },
+      });
+    }
+  }
+
+  private silentFetch(): void {
+    const tab  = this.activeTab();
+    const page = this.page();
+    const lim  = this.limit();
+    const markUpdated = () =>
+      this.lastUpdated.set(new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }));
+
+    if (tab === 'kardex') {
+      this.admin.kardex(page, lim).subscribe({
+        next: (p) => { this.kardexItems.set(p.items); this._page.set(p); markUpdated(); },
+        error: () => {},
+      });
+    } else if (tab === 'historial') {
+      this.admin.historial(page, lim).subscribe({
+        next: (p) => { this.historialItems.set(p.items); this._page.set(p); markUpdated(); },
+        error: () => {},
+      });
+    } else {
+      this.admin.outboxEvents(page, lim).subscribe({
+        next: (p) => { this.outboxItems.set(p.items); this._page.set(p); markUpdated(); },
+        error: () => {},
       });
     }
   }

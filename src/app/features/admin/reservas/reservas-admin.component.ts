@@ -11,6 +11,7 @@ import { ReservasService }    from '@core/services/reservas.service';
 import { AlquileresService }  from '@core/services/alquileres.service';
 import { VehiculosService }   from '@core/services/vehiculos.service';
 import { ToastService }       from '@core/services/toast.service';
+import { SocketService }      from '@core/services/socket.service';
 import type {
   CreateAlquilerRequest, Reserva, ReservaStatus, Vehiculo,
 } from '@core/models/api.models';
@@ -242,6 +243,7 @@ export class AdminReservasComponent implements OnInit {
   private readonly alquileres$  = inject(AlquileresService);
   private readonly vehiculos$   = inject(VehiculosService);
   private readonly toast        = inject(ToastService);
+  private readonly socket$      = inject(SocketService);
   private readonly fb           = inject(FormBuilder);
   private readonly destroyRef   = inject(DestroyRef);
 
@@ -299,6 +301,15 @@ export class AdminReservasComponent implements OnInit {
       next: (p) => this.vehiculos.set(p.items),
       error: () => {},
     });
+
+    this.socket$.onAny(
+      'reserva:creada', 'reserva:cancelada', 'reserva:confirmada',
+      'reserva:completada', 'alquiler:iniciado', 'devolucion:registrada',
+    ).pipe(
+      filter(() => !this.processingId() && !this.iniciandoReserva()),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => this.silentFetch());
+
     interval(30_000).pipe(
       filter(() => !this.processingId() && !this.iniciandoReserva()),
       takeUntilDestroyed(this.destroyRef),

@@ -1,8 +1,10 @@
 import {
-  ChangeDetectionStrategy, Component, computed, inject, OnInit, signal,
+  ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NgClass } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
+import { interval } from 'rxjs';
 
 import { AdminService } from '@core/services/admin.service';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -23,6 +25,12 @@ import type { AuthUser } from '@core/models/api.models';
           <p class="text-sm text-ink-muted mt-0.5">
             {{ total() }} cliente{{ total() !== 1 ? 's' : '' }} registrado{{ total() !== 1 ? 's' : '' }}
           </p>
+          @if (lastUpdated()) {
+            <p class="flex items-center gap-1.5 text-xs text-ink-soft mt-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-primary-700 animate-pulse"></span>
+              En vivo · {{ lastUpdated() }}
+            </p>
+          }
         </div>
 
         <!-- Filtro de estado -->
@@ -144,12 +152,14 @@ import type { AuthUser } from '@core/models/api.models';
   `,
 })
 export class AdminClientesComponent implements OnInit {
-  private readonly admin$ = inject(AdminService);
+  private readonly admin$     = inject(AdminService);
+  private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly loading  = signal(true);
-  protected readonly clientes = signal<AuthUser[]>([]);
-  protected readonly query    = signal('');
+  protected readonly loading      = signal(true);
+  protected readonly clientes     = signal<AuthUser[]>([]);
+  protected readonly query        = signal('');
   protected readonly filtroActivo = signal<'TODOS' | 'ACTIVO' | 'INACTIVO'>('TODOS');
+  protected readonly lastUpdated  = signal('');
 
   protected readonly total = computed(() => this.clientes().length);
 
@@ -191,13 +201,31 @@ export class AdminClientesComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.loadClientes();
+    interval(60_000).pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => this.silentRefresh());
+  }
+
+  private loadClientes(): void {
+    this.loading.set(true);
     this.admin$.clientes().subscribe({
       next: (list) => {
-        // Mostrar solo usuarios con rol CLIENTE
         this.clientes.set(list.filter((u) => u.role === 'CLIENTE'));
         this.loading.set(false);
+        this.lastUpdated.set(new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }));
       },
       error: () => { this.loading.set(false); },
+    });
+  }
+
+  private silentRefresh(): void {
+    this.admin$.clientes().subscribe({
+      next: (list) => {
+        this.clientes.set(list.filter((u) => u.role === 'CLIENTE'));
+        this.lastUpdated.set(new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }));
+      },
+      error: () => {},
     });
   }
 }

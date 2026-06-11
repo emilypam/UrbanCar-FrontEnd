@@ -1,9 +1,11 @@
 import {
-  ChangeDetectionStrategy, Component, computed, inject, OnInit, signal,
+  ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal,
   ViewChild,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NgClass } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
+import { filter, interval } from 'rxjs';
 
 import { VehiculosService } from '@core/services/vehiculos.service';
 import { AdminService }     from '@core/services/admin.service';
@@ -42,6 +44,12 @@ import { VehiculoFormComponent } from './vehiculo-form.component';
           <p class="text-sm text-ink-muted mt-1">
             {{ total() }} vehículos registrados.
           </p>
+          @if (lastUpdated()) {
+            <p class="flex items-center gap-1.5 text-xs text-ink-soft mt-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-primary-700 animate-pulse"></span>
+              En vivo · {{ lastUpdated() }}
+            </p>
+          }
         </div>
         <div class="flex items-center gap-2">
           <input type="search" [value]="query()" (input)="setQuery($event)"
@@ -202,8 +210,10 @@ export class AdminVehiculosComponent implements OnInit {
   private readonly vehiculos$ = inject(VehiculosService);
   private readonly admin$     = inject(AdminService);
   private readonly toast      = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly formatUsd = formatUsd;
+  protected readonly formatUsd   = formatUsd;
+  protected readonly lastUpdated = signal('');
 
   protected readonly loading   = signal(true);
   protected readonly saving    = signal(false);
@@ -247,6 +257,10 @@ export class AdminVehiculosComponent implements OnInit {
       next: (list) => this.agencias.set(list),
       error: () => {},
     });
+    interval(60_000).pipe(
+      filter(() => !this.formOpen() && !this.deleting()),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => this.silentFetch());
   }
 
   // ── Búsqueda y paginación ────────────────────────────────
@@ -374,6 +388,7 @@ export class AdminVehiculosComponent implements OnInit {
         this.vehiculos.set(p.items);
         this.total.set(p.total);
         this.loading.set(false);
+        this.lastUpdated.set(new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }));
       },
       error: (err: { error?: { error?: { message?: string } } }) => {
         this.vehiculos.set([]);
@@ -382,6 +397,17 @@ export class AdminVehiculosComponent implements OnInit {
         this.toast.error('No se pudo cargar la flota',
           err?.error?.error?.message ?? 'Verifica el backend.');
       },
+    });
+  }
+
+  private silentFetch(): void {
+    this.vehiculos$.list(this.page(), this.limit()).subscribe({
+      next: (p) => {
+        this.vehiculos.set(p.items);
+        this.total.set(p.total);
+        this.lastUpdated.set(new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }));
+      },
+      error: () => {},
     });
   }
 }

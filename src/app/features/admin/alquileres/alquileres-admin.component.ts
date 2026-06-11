@@ -1,9 +1,11 @@
 import {
-  ChangeDetectionStrategy, Component, computed, inject, OnInit, signal,
+  ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePipe, DecimalPipe, NgClass } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
+import { filter, interval } from 'rxjs';
 
 import { AlquileresService } from '@core/services/alquileres.service';
 import { AdminService }      from '@core/services/admin.service';
@@ -12,7 +14,7 @@ import { VehiculosService }  from '@core/services/vehiculos.service';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ModalComponent }      from '@shared/components/modal/modal.component';
 import { formatUsd } from '@core/utils/date.utils';
-import type { Alquiler, AlquilerStatus, Vehiculo } from '@core/models/api.models';
+import type { Alquiler, AlquilerStatus, Factura, Vehiculo } from '@core/models/api.models';
 
 const STATUS_CLASSES: Record<AlquilerStatus, string> = {
   ACTIVO:     'bg-primary-700 text-white border-primary-800',
@@ -36,6 +38,12 @@ const ESTADOS_VEHICULO = ['BUENO', 'REGULAR', 'MALO'] as const;
         <div>
           <p class="text-xs uppercase tracking-wider text-ink-soft">Panel administrativo</p>
           <h2 class="text-2xl font-semibold text-ink">Alquileres</h2>
+          @if (lastUpdated()) {
+            <p class="flex items-center gap-1.5 text-xs text-ink-soft mt-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-primary-700 animate-pulse"></span>
+              En vivo · {{ lastUpdated() }}
+            </p>
+          }
         </div>
         <span class="text-sm text-ink-muted">
           {{ total() }} registro{{ total() !== 1 ? 's' : '' }}
@@ -224,6 +232,85 @@ const ESTADOS_VEHICULO = ['BUENO', 'REGULAR', 'MALO'] as const;
         </button>
       </ng-container>
     </app-modal>
+
+    <!-- ════ Modal Factura generada ════ -->
+    <app-modal [open]="!!facturaPrevia()" size="md"
+               title="Factura generada"
+               [subtitle]="facturaPrevia()?.numeroFactura ?? ''"
+               (closed)="facturaPrevia.set(null)">
+      <ng-container body>
+        @if (facturaPrevia(); as f) {
+          <div class="space-y-5">
+            <div class="flex justify-between text-sm">
+              <div>
+                <p class="text-xs text-ink-soft uppercase tracking-wider">Número</p>
+                <p class="font-bold text-lg text-ink">{{ f.numeroFactura }}</p>
+              </div>
+              <div class="text-right">
+                <p class="text-xs text-ink-soft uppercase tracking-wider">Fecha de emisión</p>
+                <p class="font-medium text-ink">
+                  {{ f.createdAt | date:'dd/MM/yyyy' }}
+                </p>
+              </div>
+            </div>
+
+            @if (f.detalles?.length) {
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead class="bg-surface-muted text-ink-muted text-xs uppercase tracking-wider">
+                    <tr>
+                      <th class="text-left px-3 py-2 font-semibold">Descripción</th>
+                      <th class="text-right px-3 py-2 font-semibold">Cant.</th>
+                      <th class="text-right px-3 py-2 font-semibold">Precio unit.</th>
+                      <th class="text-right px-3 py-2 font-semibold">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-surface-border">
+                    @for (d of f.detalles; track $index) {
+                      <tr>
+                        <td class="px-3 py-2">{{ d.descripcion }}</td>
+                        <td class="px-3 py-2 text-right text-ink-muted">{{ d.cantidad }}</td>
+                        <td class="px-3 py-2 text-right text-ink-muted">
+                          {{ formatUsd(d.precioUnit) }}
+                        </td>
+                        <td class="px-3 py-2 text-right font-medium">
+                          {{ formatUsd(d.subtotal) }}
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+
+            <div class="bg-surface-muted rounded-xl p-4 space-y-2 text-sm">
+              <div class="flex justify-between text-ink-muted">
+                <span>Subtotal</span><span>{{ formatUsd(f.subtotal) }}</span>
+              </div>
+              <div class="flex justify-between text-ink-muted">
+                <span>IVA (15%)</span><span>{{ formatUsd(f.iva) }}</span>
+              </div>
+              <div class="flex justify-between font-bold text-base border-t border-surface-border pt-2 mt-1">
+                <span class="text-ink">Total</span>
+                <span class="text-primary-700">{{ formatUsd(f.total) }}</span>
+              </div>
+            </div>
+
+            <p class="text-xs text-ink-soft text-center">
+              Imprime esta factura y entrégala al cliente, o el cliente puede verla
+              directamente desde su panel al iniciar sesión.
+            </p>
+          </div>
+        }
+      </ng-container>
+      <ng-container footer>
+        <button type="button" class="btn-outline" (click)="facturaPrevia.set(null)">Cerrar</button>
+        <button type="button" class="btn-primary" (click)="imprimirFactura()">
+          <lucide-icon name="printer" class="w-4 h-4"></lucide-icon>
+          Imprimir para el cliente
+        </button>
+      </ng-container>
+    </app-modal>
   `,
 })
 export class AdminAlquileresComponent implements OnInit {
@@ -232,19 +319,22 @@ export class AdminAlquileresComponent implements OnInit {
   private readonly toast        = inject(ToastService);
   private readonly fb           = inject(FormBuilder);
   private readonly vehiculos$   = inject(VehiculosService);
+  private readonly destroyRef   = inject(DestroyRef);
 
   protected readonly formatUsd  = formatUsd;
   protected readonly estados    = ESTADOS_VEHICULO;
+  protected readonly lastUpdated   = signal('');
+  protected readonly facturaPrevia = signal<Factura | null>(null);
 
-  protected readonly loading           = signal(true);
-  protected readonly saving            = signal(false);
+  protected readonly loading            = signal(true);
+  protected readonly saving             = signal(false);
   protected readonly generandoFacturaId = signal<string | null>(null);
-  protected readonly alquileres        = signal<Alquiler[]>([]);
-  protected readonly vehiculos         = signal<Vehiculo[]>([]);
-  protected readonly vehiculosMap      = computed(() =>
+  protected readonly alquileres         = signal<Alquiler[]>([]);
+  protected readonly vehiculos          = signal<Vehiculo[]>([]);
+  protected readonly vehiculosMap       = computed(() =>
     new Map(this.vehiculos().map((v) => [v.id, v])));
-  protected readonly total             = computed(() => this.alquileres().length);
-  protected readonly devolviendo       = signal<Alquiler | null>(null);
+  protected readonly total              = computed(() => this.alquileres().length);
+  protected readonly devolviendo        = signal<Alquiler | null>(null);
 
   protected reservaTotal(a: Alquiler): number {
     const r = a.reserva as any;
@@ -268,6 +358,10 @@ export class AdminAlquileresComponent implements OnInit {
       next: (p) => this.vehiculos.set(p.items),
       error: () => {},
     });
+    interval(30_000).pipe(
+      filter(() => !this.devolviendo() && !this.saving()),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => this.silentFetch());
   }
 
   protected askDevolucion(a: Alquiler): void {
@@ -338,6 +432,7 @@ export class AdminAlquileresComponent implements OnInit {
       next: (f) => {
         this.generandoFacturaId.set(null);
         this.toast.success('Factura generada', `N° ${f.numeroFactura}`);
+        this.facturaPrevia.set(f);
       },
       error: (err: { error?: { error?: { message?: string } } }) => {
         this.generandoFacturaId.set(null);
@@ -347,11 +442,69 @@ export class AdminAlquileresComponent implements OnInit {
     });
   }
 
+  protected imprimirFactura(): void {
+    const f = this.facturaPrevia();
+    if (!f) return;
+    const filas = f.detalles?.map((d) => `
+      <tr>
+        <td>${d.descripcion}</td>
+        <td style="text-align:right">${d.cantidad}</td>
+        <td style="text-align:right">$${Number(d.precioUnit).toFixed(2)}</td>
+        <td style="text-align:right">$${Number(d.subtotal).toFixed(2)}</td>
+      </tr>`).join('') ?? '';
+    const fecha = new Date(f.createdAt)
+      .toLocaleDateString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <title>Factura ${f.numeroFactura}</title>
+      <style>
+        body{font-family:Arial,sans-serif;padding:40px;color:#111;max-width:680px;margin:auto}
+        h2{margin:0 0 4px}.sub{color:#666;font-size:13px;margin-bottom:24px}
+        .row{display:flex;justify-content:space-between;margin-bottom:24px}
+        table{width:100%;border-collapse:collapse;margin-bottom:20px}
+        th{background:#f3f4f6;padding:8px 10px;font-size:11px;text-transform:uppercase;text-align:left}
+        td{padding:8px 10px;border-top:1px solid #e5e7eb;font-size:13px}
+        .totales{background:#f9fafb;padding:16px 20px;border-radius:8px}
+        .t-row{display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;color:#555}
+        .t-total{display:flex;justify-content:space-between;font-size:16px;font-weight:bold;
+                 border-top:1px solid #d1d5db;padding-top:10px;margin-top:6px;color:#1e3a5f}
+      </style></head><body>
+      <h2>UrbanCar EC</h2><p class="sub">Factura Electrónica</p>
+      <div class="row">
+        <div><strong>N°:</strong> ${f.numeroFactura}</div>
+        <div><strong>Fecha:</strong> ${fecha}</div>
+      </div>
+      ${filas ? `<table><thead><tr>
+        <th>Descripción</th><th style="text-align:right">Cant.</th>
+        <th style="text-align:right">Precio unit.</th><th style="text-align:right">Subtotal</th>
+      </tr></thead><tbody>${filas}</tbody></table>` : ''}
+      <div class="totales">
+        <div class="t-row"><span>Subtotal</span><span>$${Number(f.subtotal).toFixed(2)}</span></div>
+        <div class="t-row"><span>IVA (15%)</span><span>$${Number(f.iva).toFixed(2)}</span></div>
+        <div class="t-total"><span>Total</span><span>$${Number(f.total).toFixed(2)}</span></div>
+      </div></body></html>`;
+    const win = window.open('', '_blank');
+    if (win) { win.document.write(html); win.document.close(); win.focus(); setTimeout(() => win.print(), 400); }
+  }
+
   private fetch(): void {
     this.loading.set(true);
     this.alquileres$.list().subscribe({
-      next:  (list) => { this.alquileres.set(list); this.loading.set(false); },
-      error: ()     => { this.loading.set(false); },
+      next: (list) => {
+        this.alquileres.set(list);
+        this.loading.set(false);
+        this.lastUpdated.set(new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }));
+      },
+      error: () => { this.loading.set(false); },
+    });
+  }
+
+  private silentFetch(): void {
+    this.alquileres$.list().subscribe({
+      next: (list) => {
+        this.alquileres.set(list);
+        this.lastUpdated.set(new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }));
+      },
+      error: () => {},
     });
   }
 }

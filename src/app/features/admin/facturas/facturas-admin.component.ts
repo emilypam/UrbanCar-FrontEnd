@@ -1,8 +1,10 @@
 import {
-  ChangeDetectionStrategy, Component, computed, inject, OnInit, signal,
+  ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePipe } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
+import { catchError, forkJoin, interval, of } from 'rxjs';
 
 import { AdminService }      from '@core/services/admin.service';
 import { ToastService }      from '@core/services/toast.service';
@@ -23,6 +25,12 @@ import type { Alquiler, AuthUser, Factura } from '@core/models/api.models';
         <div>
           <p class="text-xs uppercase tracking-wider text-ink-soft">Panel administrativo</p>
           <h2 class="text-2xl font-semibold text-ink">Facturas</h2>
+          @if (lastUpdated()) {
+            <p class="flex items-center gap-1.5 text-xs text-ink-soft mt-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-primary-700 animate-pulse"></span>
+              En vivo · {{ lastUpdated() }}
+            </p>
+          }
         </div>
         <div class="text-right">
           <p class="text-xs text-ink-soft uppercase tracking-wider">Total emitido</p>
@@ -123,9 +131,11 @@ export class AdminFacturasComponent implements OnInit {
   private readonly admin$      = inject(AdminService);
   private readonly toast       = inject(ToastService);
   private readonly alquileres$ = inject(AlquileresService);
+  private readonly destroyRef  = inject(DestroyRef);
 
   protected readonly formatUsd    = formatUsd;
   protected readonly loading      = signal(true);
+  protected readonly lastUpdated  = signal('');
   protected readonly facturas     = signal<Factura[]>([]);
   protected readonly alquileres   = signal<Alquiler[]>([]);
   protected readonly clientes     = signal<AuthUser[]>([]);
@@ -155,7 +165,11 @@ export class AdminFacturasComponent implements OnInit {
 
   ngOnInit(): void {
     this.admin$.facturas().subscribe({
-      next:  (list) => { this.facturas.set(list); this.loading.set(false); },
+      next: (list) => {
+        this.facturas.set(list);
+        this.loading.set(false);
+        this.lastUpdated.set(new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }));
+      },
       error: (err: { error?: { error?: { message?: string } } }) => {
         this.loading.set(false);
         this.toast.error(
@@ -171,6 +185,22 @@ export class AdminFacturasComponent implements OnInit {
     this.admin$.clientes().subscribe({
       next:  (list) => this.clientes.set(list),
       error: () => {},
+    });
+    interval(60_000).pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => this.silentRefresh());
+  }
+
+  private silentRefresh(): void {
+    forkJoin([
+      this.admin$.facturas().pipe(catchError(() => of(null))),
+      this.alquileres$.list().pipe(catchError(() => of([]))),
+      this.admin$.clientes().pipe(catchError(() => of([]))),
+    ]).subscribe(([facturas, alquileres, clientes]) => {
+      if (facturas) this.facturas.set(facturas as Factura[]);
+      this.alquileres.set(alquileres as Alquiler[]);
+      this.clientes.set(clientes as AuthUser[]);
+      this.lastUpdated.set(new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }));
     });
   }
 }
