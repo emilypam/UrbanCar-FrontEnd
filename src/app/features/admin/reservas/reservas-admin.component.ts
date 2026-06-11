@@ -1,9 +1,11 @@
 import {
-  ChangeDetectionStrategy, Component, computed, inject, OnInit, signal,
+  ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NgClass } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
+import { filter, interval } from 'rxjs';
 
 import { ReservasService }    from '@core/services/reservas.service';
 import { AlquileresService }  from '@core/services/alquileres.service';
@@ -53,6 +55,12 @@ const STATUSES: { id: ReservaStatus | 'TODAS'; label: string }[] = [
             {{ filtered().length }} reservas visibles · total estimado
             {{ formatUsd(totalAcumulado()) }}.
           </p>
+          @if (lastUpdated()) {
+            <p class="flex items-center gap-1.5 text-xs text-ink-soft mt-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-primary-700 animate-pulse"></span>
+              En vivo · {{ lastUpdated() }}
+            </p>
+          }
         </div>
 
         <input type="search" [value]="query()" (input)="setQuery($event)"
@@ -235,12 +243,14 @@ export class AdminReservasComponent implements OnInit {
   private readonly vehiculos$   = inject(VehiculosService);
   private readonly toast        = inject(ToastService);
   private readonly fb           = inject(FormBuilder);
+  private readonly destroyRef   = inject(DestroyRef);
 
   protected readonly statuses    = STATUSES;
   protected readonly formatLong  = formatLong;
   protected readonly formatUsd   = formatUsd;
 
   protected readonly loading      = signal(true);
+  protected readonly lastUpdated  = signal('');
   protected readonly saving       = signal(false);
   protected readonly processingId = signal<string | null>(null);
   protected readonly reservas     = signal<Reserva[]>([]);
@@ -289,6 +299,10 @@ export class AdminReservasComponent implements OnInit {
       next: (p) => this.vehiculos.set(p.items),
       error: () => {},
     });
+    interval(30_000).pipe(
+      filter(() => !this.processingId() && !this.iniciandoReserva()),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => this.silentFetch());
   }
 
   // ── Filtros y paginación ─────────────────────────────────
@@ -324,7 +338,7 @@ export class AdminReservasComponent implements OnInit {
   protected confirmar(r: Reserva): void {
     if (this.processingId()) return;
     this.processingId.set(r.id);
-    this.reservas$.updateStatus(r.id, 'CONFIRMADA').subscribe({
+    this.reservas$.confirm(r.id).subscribe({
       next: () => {
         this.processingId.set(null);
         this.toast.success('Reserva confirmada', this.shortId(r.id));
@@ -402,6 +416,7 @@ export class AdminReservasComponent implements OnInit {
       next: (l) => {
         this.reservas.set(l);
         this.loading.set(false);
+        this.lastUpdated.set(new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }));
       },
       error: (err: { error?: { error?: { message?: string } } }) => {
         this.reservas.set([]);
@@ -409,6 +424,16 @@ export class AdminReservasComponent implements OnInit {
         this.toast.error('No se pudo cargar las reservas',
           err?.error?.error?.message ?? 'Verifica el backend.');
       },
+    });
+  }
+
+  private silentFetch(): void {
+    this.reservas$.listAll().subscribe({
+      next: (l) => {
+        this.reservas.set(l);
+        this.lastUpdated.set(new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }));
+      },
+      error: () => {},
     });
   }
 }

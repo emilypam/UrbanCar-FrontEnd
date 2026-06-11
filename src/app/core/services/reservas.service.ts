@@ -50,12 +50,13 @@ function normalizeReserva(raw: any): Reserva {
 
 @Injectable({ providedIn: 'root' })
 export class ReservasService {
-  private readonly http = inject(HttpClient);
-  private readonly api  = environment.apiUrl;
+  private readonly http   = inject(HttpClient);
+  private readonly api    = environment.apiUrl;
+  private readonly apiV2  = environment.apiUrlV2;
 
   create(payload: CreateReservaRequest): Observable<Reserva> {
     return this.http
-      .post<ApiSuccess<Reserva>>(`${this.api}/reservas`, payload)
+      .post<ApiSuccess<Reserva>>(`${this.apiV2}/reservas`, payload)
       .pipe(map((r) => normalizeReserva(r.data)));
   }
 
@@ -91,11 +92,17 @@ export class ReservasService {
 
   cancel(id: string): Observable<Reserva> {
     return this.http
-      .patch<ApiSuccess<Reserva>>(`${this.api}/reservas/${id}/cancelar`, {})
+      .post<ApiSuccess<Reserva>>(`${this.apiV2}/reservas/${id}/cancelar`, {})
       .pipe(map((r) => normalizeReserva(r.data)));
   }
 
-  /** Cambia el status de una reserva (admin). */
+  confirm(id: string): Observable<Reserva> {
+    return this.http
+      .post<ApiSuccess<Reserva>>(`${this.apiV2}/reservas/${id}/confirmar`, {})
+      .pipe(map((r) => normalizeReserva(r.data)));
+  }
+
+  /** Cambia el status de una reserva (admin) — operaciones genéricas. */
   updateStatus(id: string, status: ReservaStatus): Observable<Reserva> {
     return this.http
       .patch<ApiSuccess<Reserva>>(`${this.api}/reservas/${id}`, { status })

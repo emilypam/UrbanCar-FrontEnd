@@ -73,5 +73,29 @@
     "changeOrigin": true,
     "pathRewrite": { "^/api/v1": "/api/v1/emilypamela" },
     "logLevel": "debug"
+  },
+  {
+    "context": ["/api/v2/reservas"],
+    "target": "http://localhost:3004",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": { "^/api/v2": "/api/v2/emilypamela" },
+    "logLevel": "debug"
+  },
+  {
+    "context": ["/api/v2/pagos"],
+    "target": "http://localhost:3005",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": { "^/api/v2": "/api/v2/emilypamela" },
+    "logLevel": "debug"
+  },
+  {
+    "context": ["/api/v2/mantenimientos"],
+    "target": "http://localhost:3006",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": { "^/api/v2": "/api/v2/emilypamela" },
+    "logLevel": "debug"
   }
 ]
